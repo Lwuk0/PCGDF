@@ -54,7 +54,7 @@ configure(subprojects) {
 
 subprojects {
     version = "$projectVersion"
-    ext.appName = 'Passo Certo: Guardião da Faixa'
+    ext.appName = 'Passo Certo Guardião da Faixa'
     repositories {
         mavenCentral()
         // You may want to remove the following line if you have errors downloading dependencies.
