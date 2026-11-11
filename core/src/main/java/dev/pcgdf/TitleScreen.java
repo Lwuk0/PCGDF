@@ -26,23 +26,49 @@ public class TitleScreen extends ScreenAdapter {
         ScreenUtils.clear(0.15f, 0.15f, 0.2f, 1f);
         tempo += delta;
 
-        float ciclo = tempo % (duracao * 2);
-        boolean primeira = ciclo < duracao;
-        float progresso = primeira ? ciclo / duracao : (ciclo - duracao) / duracao;
-        float alpha = 1f - Math.abs(progresso * 2f - 1f);
+        int mouseX = Gdx.input.getX();
+        int mouseY = Gdx.graphics.getHeight() - Gdx.input.getY();
+
+        boolean hoverJogar = mouseX >= 90 && mouseX <= 210 && mouseY >= 280 && mouseY <= 320;
+        boolean hoverSair = mouseX >= 90 && mouseX <= 210 && mouseY >= 230 && mouseY <= 270;
 
         game.batch.begin();
-        game.font.draw(game.batch, "OII OII OI OI OI OI", 100, 300);
 
-        game.batch.setColor(1f, 1f, 1f, alpha);
-        if (primeira) {
+        if (tempo < duracao) {
             game.batch.draw(game.image, 140, 210);
         } else {
             game.batch.draw(image2, 0, 0);
         }
-        game.batch.setColor(Color.WHITE);
+
+        if (hoverJogar) {
+            game.font.setColor(Color.GOLD);
+            game.font.draw(game.batch, "> JOGAR <", 90, 300);
+        } else {
+            game.font.setColor(Color.WHITE);
+            game.font.draw(game.batch, "  JOGAR  ", 100, 300);
+        }
+
+        if (hoverSair) {
+            game.font.setColor(Color.SALMON);
+            game.font.draw(game.batch, "> SAIR <", 95, 250);
+        } else {
+            game.font.setColor(Color.WHITE);
+            game.font.draw(game.batch, "  SAIR  ", 100, 250);
+        }
+
+        game.font.setColor(Color.WHITE);
 
         game.batch.end();
+
+        if (Gdx.input.justTouched()) {
+            if (hoverJogar) {
+                System.out.println("Botão Jogar clicado!");
+            }
+
+            if (hoverSair) {
+                Gdx.app.exit();
+            }
+        }
     }
 
     @Override
