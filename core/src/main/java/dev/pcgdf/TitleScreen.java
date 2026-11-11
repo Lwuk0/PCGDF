@@ -31,7 +31,7 @@ public class TitleScreen extends ScreenAdapter {
 
         boolean hoverJogar = mouseX >= 90 && mouseX <= 210 && mouseY >= 280 && mouseY <= 320;
         boolean hoverSair = mouseX >= 90 && mouseX <= 210 && mouseY >= 230 && mouseY <= 270;
-
+        boolean hoverCreditos = mouseX >= 90 && mouseX <= 210 && mouseY >= 180 && mouseY <= 220;
         game.batch.begin();
 
         if (tempo < duracao) {
@@ -49,11 +49,19 @@ public class TitleScreen extends ScreenAdapter {
         }
 
         if (hoverSair) {
-            game.font.setColor(Color.SALMON);
+            game.font.setColor(Color.GOLD);
             game.font.draw(game.batch, "> SAIR <", 95, 250);
         } else {
             game.font.setColor(Color.WHITE);
             game.font.draw(game.batch, "  SAIR  ", 100, 250);
+        }
+
+        if (hoverCreditos){
+            game.font.setColor(Color.GOLD);
+            game.font.draw(game.batch, "> CREDITOS <", 100, 200);
+        }else {
+            game.font.setColor(Color.WHITE);
+            game.font.draw(game.batch, "  CREDITOS  ", 100, 200);
         }
 
         game.font.setColor(Color.WHITE);
@@ -67,6 +75,10 @@ public class TitleScreen extends ScreenAdapter {
 
             if (hoverSair) {
                 Gdx.app.exit();
+            }
+
+            if(hoverCreditos){
+                System.out.println("Botão creditos clicado!");
             }
         }
     }
