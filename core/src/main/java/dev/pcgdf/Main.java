@@ -1,13 +1,11 @@
 package dev.pcgdf;
 
-import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Game;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.utils.ScreenUtils;
 
-/** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
-public class Main extends ApplicationAdapter {
+public class Main extends Game {
     public SpriteBatch batch;
     public Texture image;
     public BitmapFont font;
@@ -17,20 +15,14 @@ public class Main extends ApplicationAdapter {
         batch = new SpriteBatch();
         image = new Texture("libgdx.png");
         font = new BitmapFont();
-    }
 
-    @Override
-    public void render() {
-        ScreenUtils.clear(0.15f, 0.15f, 0.2f, 1f);
-        batch.begin();
-        batch.draw(image, 140, 210);
-        font.draw(batch, "OII OII OI OI OI OI", 100, 300);
-        batch.end();
+        setScreen(new TitleScreen(this));
     }
 
     @Override
     public void dispose() {
         batch.dispose();
         image.dispose();
+        font.dispose();
     }
 }
