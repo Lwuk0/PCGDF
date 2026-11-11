@@ -8,9 +8,9 @@ import com.badlogic.gdx.utils.ScreenUtils;
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
 public class Main extends ApplicationAdapter {
-    private SpriteBatch batch;
-    private Texture image;
-    private BitmapFont font;
+    public SpriteBatch batch;
+    public Texture image;
+    public BitmapFont font;
 
     @Override
     public void create() {
