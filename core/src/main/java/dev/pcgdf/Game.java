@@ -69,6 +69,8 @@ public class Game extends ScreenAdapter {
 
         if (dx != 0) dy = 0;
         if (dx != 0 || dy != 0) player.move(dx, dy);
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) Main.getInstance().setScreen(new TitleScreen());
     }
 
     private void update(float delta) {
