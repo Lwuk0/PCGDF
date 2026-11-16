@@ -10,8 +10,12 @@ public class Main extends Game {
     public Texture image;
     public BitmapFont font;
 
+    private static Main instance;
+
     @Override
     public void create() {
+        instance = this;
+
         batch = new SpriteBatch();
         image = new Texture("libgdx.png");
         font = new BitmapFont();
@@ -24,5 +28,11 @@ public class Main extends Game {
         batch.dispose();
         image.dispose();
         font.dispose();
+
+        instance = null;
+    }
+
+    public static Main getInstance() {
+        return instance;
     }
 }
