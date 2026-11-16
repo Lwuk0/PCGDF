@@ -102,14 +102,18 @@ public class Game extends ScreenAdapter {
             car.update(delta);
 
             if (car.bounds.overlaps(player.bounds)) {
-                hitByCar();
+                Gdx.app.log("EVENT", "atropelado");
+                respawn();
                 return;
             }
 
             if (car.isOffScreen(viewport.getWorldWidth())) iter.remove();
         }
 
-        if (player.bounds.y >= viewport.getWorldHeight() - GRID_SIZE) goal();
+        if (player.bounds.y >= goalY) {
+            Gdx.app.log("EVENT", "nice");
+            respawn();
+        }
     }
 
     private void spawnCar(int idx) {
@@ -120,16 +124,6 @@ public class Game extends ScreenAdapter {
         float startX = (speed > 0) ? -width : viewport.getWorldWidth();
 
         cars.add(new Car(startX, y, width, height, speed));
-    }
-
-    private void hitByCar() {
-        Gdx.app.log("EVENT", "atropelado");
-        respawn();
-    }
-
-    private void goal() {
-        Gdx.app.log("EVENT", "nice");
-        respawn();
     }
 
     private void respawn() {
