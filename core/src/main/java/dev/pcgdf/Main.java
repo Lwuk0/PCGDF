@@ -20,7 +20,7 @@ public class Main extends Game {
         image = new Texture("libgdx.png");
         font = new BitmapFont();
 
-        setScreen(new TitleScreen(this));
+        setScreen(new TitleScreen());
     }
 
     @Override

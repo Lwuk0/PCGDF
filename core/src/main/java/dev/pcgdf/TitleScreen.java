@@ -12,8 +12,8 @@ public class TitleScreen extends ScreenAdapter {
     private float tempo = 0f;
     private final float duracao = 2f;
 
-    public TitleScreen(Main game) {
-        this.game = game;
+    public TitleScreen() {
+        this.game = Main.getInstance();
     }
 
     @Override
@@ -69,9 +69,7 @@ public class TitleScreen extends ScreenAdapter {
         game.batch.end();
 
         if (Gdx.input.justTouched()) {
-            if (hoverJogar) {
-                System.out.println("Botão Jogar clicado!");
-            }
+            if (hoverJogar) game.setScreen(new Game());
 
             if (hoverSair) {
                 Gdx.app.exit();
