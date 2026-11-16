@@ -6,6 +6,7 @@ import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.FloatArray;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
@@ -21,19 +22,30 @@ public class Game extends ScreenAdapter {
     private final Viewport viewport;
     private final Player player;
     private final Array<Car> cars;
-    private final float[] lanes = { 100f, 150f, 250f, 300f, 350f, 450f, 500f };
+    private final FloatArray lanes;
     private final float[] laneSpeeds;
     private final float[] laneSpawnTimers;
+    private final float goalY;
 
     public Game() {
         shapeRender = new ShapeRenderer();
         viewport = new FitViewport(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-        player = new Player(viewport.getWorldWidth() / 2f, 0f, GRID_SIZE, viewport.getWorldWidth(), viewport.getWorldHeight());
-        cars = new Array<>();
-        laneSpeeds = new float[lanes.length];
-        laneSpawnTimers = new float[lanes.length];
+        lanes = new FloatArray();
 
-        for (int i = 0; i < lanes.length; i++) {
+        float worldW = viewport.getWorldWidth();
+        float worldH = viewport.getWorldHeight();
+        int totalRows = (int) (worldH / GRID_SIZE);
+        int maxRoadRow = totalRows - 3;
+
+        for (int row = 2; row <= maxRoadRow; row++) if ((row - 2) % 3 != 2) lanes.add(row * GRID_SIZE);
+
+        goalY = (totalRows - 1) * GRID_SIZE;
+        player = new Player(worldW / 2f, 0f, GRID_SIZE, worldW, worldH);
+        cars = new Array<>();
+        laneSpeeds = new float[lanes.size];
+        laneSpawnTimers = new float[lanes.size];
+
+        for (int i = 0; i < lanes.size; i++) {
             float direction = (i % 2 == 0) ? 1f : -1f; // direção dos carros (deterministic)
 
             laneSpeeds[i] = direction * MathUtils.random(120f, 260f);
@@ -52,7 +64,7 @@ public class Game extends ScreenAdapter {
         shapeRender.begin(ShapeRenderer.ShapeType.Filled);
         shapeRender.setColor(0.22f, 0.22f, 0.25f, 1f);
 
-        for (float laneY : lanes) shapeRender.rect(0, laneY, viewport.getWorldWidth(), GRID_SIZE);
+        for (int i = 0; i < lanes.size; i++) shapeRender.rect(0, lanes.get(i), viewport.getWorldWidth(), GRID_SIZE);
         cars.forEach(c -> c.render(shapeRender));
         player.render(shapeRender);
         shapeRender.end();
@@ -74,7 +86,7 @@ public class Game extends ScreenAdapter {
     }
 
     private void update(float delta) {
-        for (int i = 0; i < lanes.length; i++) {
+        for (int i = 0; i < lanes.size; i++) {
             laneSpawnTimers[i] -= delta;
 
             if (laneSpawnTimers[i] <= 0) {
@@ -101,7 +113,7 @@ public class Game extends ScreenAdapter {
     }
 
     private void spawnCar(int idx) {
-        float y = lanes[idx] + 5f;
+        float y = lanes.get(idx) + 5f;
         float speed = laneSpeeds[idx];
         float width = MathUtils.random(60f, 100f);
         float height = GRID_SIZE - 10f;
