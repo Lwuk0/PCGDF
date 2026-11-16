@@ -28,7 +28,7 @@ public class Game extends ScreenAdapter {
     public Game() {
         shapeRender = new ShapeRenderer();
         viewport = new FitViewport(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-        player = new Player(viewport.getScreenWidth() / 2f, 0f, GRID_SIZE, viewport.getScreenWidth(), viewport.getScreenHeight());
+        player = new Player(viewport.getWorldWidth() / 2f, 0f, GRID_SIZE, viewport.getWorldWidth(), viewport.getWorldHeight());
         cars = new Array<>();
         laneSpeeds = new float[lanes.length];
         laneSpawnTimers = new float[lanes.length];
@@ -52,7 +52,7 @@ public class Game extends ScreenAdapter {
         shapeRender.begin(ShapeRenderer.ShapeType.Filled);
         shapeRender.setColor(0.22f, 0.22f, 0.25f, 1f);
 
-        for (float laneY : lanes) shapeRender.rect(0, laneY, viewport.getScreenWidth(), GRID_SIZE);
+        for (float laneY : lanes) shapeRender.rect(0, laneY, viewport.getWorldWidth(), GRID_SIZE);
         cars.forEach(c -> c.render(shapeRender));
         player.render(shapeRender);
         shapeRender.end();
@@ -94,10 +94,10 @@ public class Game extends ScreenAdapter {
                 return;
             }
 
-            if (car.isOffScreen(viewport.getScreenWidth())) iter.remove();
+            if (car.isOffScreen(viewport.getWorldWidth())) iter.remove();
         }
 
-        if (player.bounds.y >= viewport.getScreenHeight() - GRID_SIZE) goal();
+        if (player.bounds.y >= viewport.getWorldHeight() - GRID_SIZE) goal();
     }
 
     private void spawnCar(int idx) {
@@ -105,7 +105,7 @@ public class Game extends ScreenAdapter {
         float speed = laneSpeeds[idx];
         float width = MathUtils.random(60f, 100f);
         float height = GRID_SIZE - 10f;
-        float startX = (speed > 0) ? -width : viewport.getScreenWidth();
+        float startX = (speed > 0) ? -width : viewport.getWorldWidth();
 
         cars.add(new Car(startX, y, width, height, speed));
     }
@@ -121,7 +121,7 @@ public class Game extends ScreenAdapter {
     }
 
     private void respawn() {
-        player.reset(viewport.getScreenWidth() / 2f, 0f);
+        player.reset(viewport.getWorldWidth() / 2f, 0f);
     }
 
     @Override
