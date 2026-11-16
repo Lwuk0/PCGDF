@@ -13,11 +13,7 @@ public class TitleScreen extends ScreenAdapter {
     private final float duracao = 2f;
 
     public TitleScreen() {
-        this.game = Main.getInstance();
-    }
-
-    @Override
-    public void show() {
+        game = Main.getInstance();
         image2 = new Texture("sinal de transito.png");
     }
 
@@ -32,13 +28,10 @@ public class TitleScreen extends ScreenAdapter {
         boolean hoverJogar = mouseX >= 90 && mouseX <= 210 && mouseY >= 280 && mouseY <= 320;
         boolean hoverSair = mouseX >= 90 && mouseX <= 210 && mouseY >= 230 && mouseY <= 270;
         boolean hoverCreditos = mouseX >= 90 && mouseX <= 210 && mouseY >= 180 && mouseY <= 220;
+
         game.batch.begin();
 
-        if (tempo < duracao) {
-            game.batch.draw(game.image, 140, 210);
-        } else {
-            game.batch.draw(image2, 0, 0);
-        }
+        game.batch.draw(image2, 0, 0);
 
         if (hoverJogar) {
             game.font.setColor(Color.GOLD);
