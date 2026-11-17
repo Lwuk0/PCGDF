@@ -3,6 +3,7 @@ package dev.pcgdf;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.ScreenAdapter;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
@@ -63,6 +64,12 @@ public class Game extends ScreenAdapter {
         for (int i = 0; i < entidades.size; i++) entidades.get(i).render(shapeRender);
 
         shapeRender.end();
+
+        Main.getInstance().batch.begin();
+        Main.getInstance().font.getData().setScale(1.0f);
+        Main.getInstance().font.setColor(Color.WHITE);
+        Main.getInstance().font.draw(Main.getInstance().batch, "VIDAS: " + player.getVidas(), 10, 15);
+        Main.getInstance().batch.end();
     }
 
     private void handleInput() { // trocar pro input handler do libgdx
@@ -164,6 +171,8 @@ public class Game extends ScreenAdapter {
     }
 
     private void respawn() {
+        if (player.getVidas() <= 0) Main.getInstance().setScreen(new TitleScreen());
+
         player.reset(viewport.getWorldWidth() / 2f, 0f);
         setupLanes();
     }
