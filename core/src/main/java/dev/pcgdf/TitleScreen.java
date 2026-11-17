@@ -12,6 +12,7 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import dev.pcgdf.gui.MenuButton;
 
 public class TitleScreen extends ScreenAdapter {
     private final Main game;
@@ -20,10 +21,10 @@ public class TitleScreen extends ScreenAdapter {
     private final Viewport viewport = new ExtendViewport(640, 480);
     private final Vector2 mouse = new Vector2();
 
-    private Rectangle botaoJogar;
-    private Rectangle botaoCreditos;
-    private Rectangle botaoSair;
-    private Rectangle botaoVoltar;
+    private MenuButton botaoJogar;
+    private MenuButton botaoCreditos;
+    private MenuButton botaoSair;
+    private MenuButton botaoVoltar;
 
     private boolean mostrarCreditos = false;
 
@@ -75,10 +76,10 @@ public class TitleScreen extends ScreenAdapter {
         float x = (viewport.getWorldWidth() - largura) / 2f;
         float y = viewport.getWorldHeight() * 0.50f;
 
-        botaoJogar = new Rectangle(x, y, largura, altura);
-        botaoCreditos = new Rectangle(x, y - (altura + espaco), largura, altura);
-        botaoSair = new Rectangle(x, y - 2 * (altura + espaco), largura, altura);
-        botaoVoltar = new Rectangle(x, 20, largura, 44);
+        botaoJogar = new MenuButton(x, y, largura, altura, "JOGAR", verdeBotao, Color.WHITE);
+        botaoCreditos = new MenuButton(x, y - (altura + espaco), largura, altura, "CREDITOS", cinzaBotao, Color.WHITE);
+        botaoSair = new MenuButton(x, y - 2 * (altura + espaco), largura, altura, "SAIR", cinzaBotao, Color.WHITE);
+        botaoVoltar = new MenuButton(x, 20, largura, 44, "VOLTAR", cinzaBotao, Color.WHITE);
     }
 
 
@@ -99,57 +100,47 @@ public class TitleScreen extends ScreenAdapter {
             return;
         }
 
-        boolean hoverJogar = botaoJogar.contains(mouse.x, mouse.y);
-        boolean hoverCreditos = botaoCreditos.contains(mouse.x, mouse.y);
-        boolean hoverSair = botaoSair.contains(mouse.x, mouse.y);
+        boolean hoverJogar = botaoJogar.isHovered(mouse);
+        boolean hoverCreditos = botaoCreditos.isHovered(mouse);
+        boolean hoverSair = botaoSair.isHovered(mouse);
 
         shape.begin(ShapeType.Filled);
         desenharFundo();
         desenharFaixa();
         desenharSemaforo();
-        desenharFormaBotao(botaoJogar, verdeBotao, hoverJogar);
-        desenharFormaBotao(botaoCreditos, cinzaBotao, hoverCreditos);
-        desenharFormaBotao(botaoSair, cinzaBotao, hoverSair);
+        botaoJogar.render(shape, mouse);
+        botaoCreditos.render(shape, mouse);
+        botaoSair.render(shape, mouse);
         shape.end();
 
         game.batch.begin();
         desenharTitulo();
         desenharFrase();
-        desenharTextoBotao(botaoJogar, "JOGAR", hoverJogar);
-        desenharTextoBotao(botaoCreditos, "CREDITOS", hoverCreditos);
-        desenharTextoBotao(botaoSair, "SAIR", hoverSair);
-        game.font.getData().setScale(1f);
-        game.font.setColor(Color.WHITE);
+        botaoJogar.renderText(game.batch, game.fonteMedia, 0.8f, mouse);
+        botaoCreditos.renderText(game.batch, game.fonteMedia, 0.8f, mouse);
+        botaoSair.renderText(game.batch, game.fonteMedia, 0.8f, mouse);
         game.batch.end();
 
         if (Gdx.input.justTouched()) {
-            if (hoverJogar) {
-                game.setScreen(new Game());
-            }
-            if (hoverCreditos) {
-                mostrarCreditos = true;
-            }
-            if (hoverSair) {
-                Gdx.app.exit();
-            }
+            if (hoverJogar) game.setScreen(new Game());
+            if (hoverCreditos) mostrarCreditos = true;
+            if (hoverSair) Gdx.app.exit();
         }
     }
 
     private void renderCreditos() {
-        boolean hoverVoltar = botaoVoltar.contains(mouse.x, mouse.y);
+        boolean hoverVoltar = botaoVoltar.isHovered(mouse);
 
         shape.begin(ShapeType.Filled);
         desenharFundo();
         desenharFaixa();
-        desenharFormaBotao(botaoVoltar, cinzaBotao, hoverVoltar);
+        botaoVoltar.render(shape, mouse);
         shape.end();
 
         game.batch.begin();
         desenharTituloCreditos();
         desenharNomes();
-        desenharTextoBotao(botaoVoltar, "VOLTAR", hoverVoltar);
-        game.font.getData().setScale(1f);
-        game.font.setColor(Color.WHITE);
+        botaoVoltar.renderText(game.batch, game.fonteMedia, 0.8f, mouse);
         game.batch.end();
 
         if (Gdx.input.justTouched() && hoverVoltar) {
