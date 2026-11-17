@@ -13,6 +13,8 @@ import com.badlogic.gdx.utils.viewport.Viewport;
 import dev.pcgdf.entities.Car;
 import dev.pcgdf.entities.Player;
 
+import java.util.stream.IntStream;
+
 public class Game extends ScreenAdapter {
     private static final float GRID_SIZE = 50f;
 
@@ -21,8 +23,8 @@ public class Game extends ScreenAdapter {
     private final Player player;
     private final Array<Entidade> entidades; // Não irei utilizar uma lista, pq no contexto de uma framework, um array usa menos recurso doq uma lista, ainda mais qnd os elementos executam funções de renderizar. (garbage collector do java).
     private final FloatArray lanes;
-    private final float[] laneSpeeds;
-    private final float[] laneSpawnTimers;
+    private float[] laneSpeeds;
+    private float[] laneSpawnTimers;
     private final float goalY;
 
     public Game() {
@@ -33,25 +35,14 @@ public class Game extends ScreenAdapter {
         float worldW = viewport.getWorldWidth();
         float worldH = viewport.getWorldHeight();
         int totalRows = (int) (worldH / GRID_SIZE);
-        int maxRoadRow = totalRows - 3;
-
-        for (int row = 2; row <= maxRoadRow; row++) if ((row - 2) % 3 != 2) lanes.add(row * GRID_SIZE);
 
         goalY = (totalRows - 1) * GRID_SIZE;
         player = new Player(worldW / 2f, 0f, GRID_SIZE, worldW, worldH);
-
         entidades = new Array<>();
+
         entidades.add(player);
 
-        laneSpeeds = new float[lanes.size];
-        laneSpawnTimers = new float[lanes.size];
-
-        for (int i = 0; i < lanes.size; i++) {
-            float direction = (i % 2 == 0) ? 1f : -1f; // direção dos carros (deterministic)
-
-            laneSpeeds[i] = direction * MathUtils.random(120f, 260f);
-            laneSpawnTimers[i] = MathUtils.random(0.2f, 1.5f);
-        }
+        setupLanes();
     }
 
     @Override
@@ -66,7 +57,11 @@ public class Game extends ScreenAdapter {
         shapeRender.setColor(0.22f, 0.22f, 0.25f, 1f);
         for (int i = 0; i < lanes.size; i++) shapeRender.rect(0, lanes.get(i), viewport.getWorldWidth(), GRID_SIZE);
 
-        entidades.forEach(i -> i.render(shapeRender));
+        shapeRender.setColor(0.95f, 0.75f, 0.15f, 1f);
+        shapeRender.rect(0, goalY, viewport.getWorldWidth(), GRID_SIZE);
+
+        for (int i = 0; i < entidades.size; i++) entidades.get(i).render(shapeRender);
+
         shapeRender.end();
     }
 
@@ -86,7 +81,7 @@ public class Game extends ScreenAdapter {
     }
 
     private void update(float delta) {
-        entidades.forEach(i -> i.update(delta));
+        IntStream.range(0, entidades.size).forEach(i -> entidades.get(i).update(delta));
 
         for (int i = 0; i < lanes.size; i++) {
             laneSpawnTimers[i] -= delta;
@@ -119,18 +114,58 @@ public class Game extends ScreenAdapter {
         }
     }
 
-    private void spawnCar(int idx) {
+    private void setupLanes() {
+        IntStream.iterate(entidades.size - 1, i -> i >= 0, i -> i - 1).filter(i -> entidades.get(i) instanceof Car).forEach(entidades::removeIndex);
+        lanes.clear();
+
+        float worldH = viewport.getWorldHeight();
+        int totalRows = (int) (worldH / GRID_SIZE);
+        int currentRow = 2;
+        int maxRoadRow = totalRows - 3;
+
+        while (currentRow <= maxRoadRow) {
+            int clusterSize = MathUtils.random(1, 3);
+
+            for (int j = 0; j < clusterSize && currentRow <= maxRoadRow; j++) {
+                lanes.add(currentRow * GRID_SIZE);
+                currentRow++;
+            }
+
+            currentRow += MathUtils.random(1, 2);
+        }
+
+        laneSpeeds = new float[lanes.size];
+        laneSpawnTimers = new float[lanes.size];
+
+        for (int i = 0; i < lanes.size; i++) {
+            float direction = (i % 2 == 0) ? 1f : -1f; // direção dos carros (deterministic)
+            int ongoing = MathUtils.random(1, 3);
+
+            laneSpeeds[i] = direction * MathUtils.random(120f, 260f);
+            laneSpawnTimers[i] = MathUtils.random(0.2f, 1.5f);
+
+            for (int c = 0; c < ongoing; c++) spawnCar(i, MathUtils.random(0f, viewport.getWorldWidth()));
+        }
+    }
+
+    private void spawnCar(int idx, float startX) {
         float y = lanes.get(idx) + 5f;
         float speed = laneSpeeds[idx];
         float width = MathUtils.random(60f, 100f);
         float height = GRID_SIZE - 10f;
-        float startX = (speed > 0) ? -width : viewport.getWorldWidth();
 
         entidades.add(new Car(startX, y, width, height, speed));
     }
 
+    private void spawnCar(int idx) {
+        float startX = (laneSpeeds[idx] > 0) ? -MathUtils.random(60f, 100f) : viewport.getWorldWidth();
+
+        spawnCar(idx, startX);
+    }
+
     private void respawn() {
         player.reset(viewport.getWorldWidth() / 2f, 0f);
+        setupLanes();
     }
 
     @Override
