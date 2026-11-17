@@ -2,27 +2,30 @@ package dev.pcgdf.entities;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
-import com.badlogic.gdx.math.Rectangle;
+import dev.pcgdf.Entidade;
 
-public class Car {
-    public final Rectangle bounds;
-    private final float speed;
-
+public class Car extends Entidade {
     public Car(float x, float y, float width, float height, float speed) {
-        this.bounds = new Rectangle(x, y, width, height);
-        this.speed = speed;
+        super(x, y, width, height);
+
+        velocidade.set(speed, 0f);
     }
 
+    @Override
     public void update(float delta) {
-        bounds.x += speed * delta;
+        if (ativa) bounds.x += velocidade.x * delta;
     }
 
+    @Override
     public void render(ShapeRenderer renderer) {
+        if (!ativa) return;
+
         renderer.setColor(Color.GRAY);
         renderer.rect(bounds.x, bounds.y, bounds.width, bounds.height);
     }
 
+
     public boolean isOffScreen(float width) {
-        return (speed > 0 && bounds.x > width) || (speed < 0 && bounds.x + bounds.width < 0);
+        return (velocidade.x > 0 && bounds.x > width) || (velocidade.x < 0 && bounds.x + bounds.width < 0);
     }
 }
