@@ -13,6 +13,7 @@ dependencies {
     implementation "com.badlogicgames.gdx:gdx-box2d-gwt:$gdxVersion"
     implementation "com.github.xpenatan.gdx-teavm:backend-web:$gdxTeaVMVersion"
     implementation "com.github.xpenatan.gdx-teavm:gdx-freetype-web:$gdxTeaVMVersion"
+    implementation "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"
     implementation project(':core')
 }
 

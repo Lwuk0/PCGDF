@@ -81,6 +81,7 @@ public class TitleScreen extends ScreenAdapter {
         botaoVoltar = new Rectangle(x, 20, largura, 44);
     }
 
+
     @Override
     public void render(float delta) {
         tempo += delta;
@@ -227,15 +228,24 @@ public class TitleScreen extends ScreenAdapter {
         float w = viewport.getWorldWidth();
         float h = viewport.getWorldHeight();
 
-        game.font.getData().setScale(2.6f);
-        game.font.setColor(amarelo);
-        layout.setText(game.font, "THE RIGHT STEP");
-        game.font.draw(game.batch, "THE RIGHT STEP", (w - layout.width) / 2f, h - 50);
 
-        game.font.getData().setScale(1.2f);
-        game.font.setColor(Color.WHITE);
-        layout.setText(game.font, "Guardião da Faixa");
-        game.font.draw(game.batch, "Guardião da Faixa", (w - layout.width) / 2f, h - 105);
+        game.fonteGrande.setColor(amarelo);
+        layout.setText(game.fonteGrande, "THE RIGHT STEP");
+        game.fonteGrande.draw(
+            game.batch,
+            "THE RIGHT STEP",
+            (w - layout.width) / 2f,
+            h - 50
+        );
+
+        game.fonteMedia.getData().setScale(1.0f);
+        game.fonteMedia.setColor(Color.WHITE);
+        layout.setText(game.fonteMedia, "GUARDIÃO DA FAIXA");
+        game.fonteMedia.draw(
+            game.batch,
+            "GUARDIÃO DA FAIXA",
+            (w - layout.width) / 2f,
+            h - 105);
     }
 
     private void desenharTituloCreditos() {
@@ -266,21 +276,23 @@ public class TitleScreen extends ScreenAdapter {
         String frase = "Ter consciência é o primeiro passo para ser um bom cidadão.";
         float w = viewport.getWorldWidth();
 
-        game.font.getData().setScale(0.9f);
-        game.font.setColor(cinzaClaro);
-        layout.setText(game.font, frase);
-        game.font.draw(game.batch, frase, (w - layout.width) / 2f, 70);
+        game.fonteMedia.getData().setScale(0.65f);
+        game.fonteMedia.setColor(cinzaClaro);
+        layout.setText(game.fonteMedia, frase);
+        game.fonteMedia.draw(game.batch, frase, (w - layout.width) / 2f, 70);
     }
 
     private void desenharTextoBotao(Rectangle botao, String texto, boolean hover) {
-        game.font.getData().setScale(1.3f);
+        game.fonteMedia.getData().setScale(0.8f);
+
         if (hover) {
-            game.font.setColor(textoEscuro);
+            game.fonteMedia.setColor(textoEscuro);
         } else {
-            game.font.setColor(Color.WHITE);
+            game.fonteMedia.setColor(Color.WHITE);
         }
-        layout.setText(game.font, texto);
-        game.font.draw(game.batch, texto,
+
+        layout.setText(game.fonteMedia, texto);
+        game.fonteMedia.draw(game.batch, texto,
             botao.x + (botao.width - layout.width) / 2f,
             botao.y + (botao.height + layout.height) / 2f);
     }
