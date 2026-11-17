@@ -24,7 +24,6 @@ public class Car extends Entidade {
         renderer.rect(bounds.x, bounds.y, bounds.width, bounds.height);
     }
 
-
     public boolean isOffScreen(float width) {
         return (velocidade.x > 0 && bounds.x > width) || (velocidade.x < 0 && bounds.x + bounds.width < 0);
     }

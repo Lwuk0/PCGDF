@@ -13,15 +13,13 @@ import com.badlogic.gdx.utils.viewport.Viewport;
 import dev.pcgdf.entities.Car;
 import dev.pcgdf.entities.Player;
 
-import java.util.Iterator;
-
 public class Game extends ScreenAdapter {
     private static final float GRID_SIZE = 50f;
 
     private final ShapeRenderer shapeRender;
     private final Viewport viewport;
     private final Player player;
-    private final Array<Car> cars;
+    private final Array<Entidade> entidades; // Não irei utilizar uma lista, pq no contexto de uma framework, um array usa menos recurso doq uma lista, ainda mais qnd os elementos executam funções de renderizar. (garbage collector do java).
     private final FloatArray lanes;
     private final float[] laneSpeeds;
     private final float[] laneSpawnTimers;
@@ -41,7 +39,10 @@ public class Game extends ScreenAdapter {
 
         goalY = (totalRows - 1) * GRID_SIZE;
         player = new Player(worldW / 2f, 0f, GRID_SIZE, worldW, worldH);
-        cars = new Array<>();
+
+        entidades = new Array<>();
+        entidades.add(player);
+
         laneSpeeds = new float[lanes.size];
         laneSpawnTimers = new float[lanes.size];
 
@@ -63,10 +64,9 @@ public class Game extends ScreenAdapter {
         shapeRender.setProjectionMatrix(viewport.getCamera().combined);
         shapeRender.begin(ShapeRenderer.ShapeType.Filled);
         shapeRender.setColor(0.22f, 0.22f, 0.25f, 1f);
-
         for (int i = 0; i < lanes.size; i++) shapeRender.rect(0, lanes.get(i), viewport.getWorldWidth(), GRID_SIZE);
-        cars.forEach(c -> c.render(shapeRender));
-        player.render(shapeRender);
+
+        entidades.forEach(i -> i.render(shapeRender));
         shapeRender.end();
     }
 
@@ -86,6 +86,8 @@ public class Game extends ScreenAdapter {
     }
 
     private void update(float delta) {
+        entidades.forEach(i -> i.update(delta));
+
         for (int i = 0; i < lanes.size; i++) {
             laneSpawnTimers[i] -= delta;
 
@@ -95,22 +97,23 @@ public class Game extends ScreenAdapter {
             }
         }
 
-        Iterator<Car> iter = cars.iterator();
-        while (iter.hasNext()) {
-            Car car = iter.next();
+        for (int i = entidades.size - 1; i >= 0; i--) {
+            Entidade e = entidades.get(i);
 
-            car.update(delta);
+            if (e instanceof Car car) {
+                if (car.isCollidingWith(player)) {
+                    Gdx.app.log("EVENT", "atropelado. Vidas restantes: " + (player.getVidas() - 1));
+                    player.perderVida();
+                    respawn();
 
-            if (car.bounds.overlaps(player.bounds)) {
-                Gdx.app.log("EVENT", "atropelado");
-                respawn();
-                return;
+                    return;
+                }
+
+                if (car.isOffScreen(viewport.getWorldWidth())) entidades.removeIndex(i);
             }
-
-            if (car.isOffScreen(viewport.getWorldWidth())) iter.remove();
         }
 
-        if (player.bounds.y >= goalY) {
+        if (player.getY() >= goalY) {
             Gdx.app.log("EVENT", "nice");
             respawn();
         }
@@ -123,7 +126,7 @@ public class Game extends ScreenAdapter {
         float height = GRID_SIZE - 10f;
         float startX = (speed > 0) ? -width : viewport.getWorldWidth();
 
-        cars.add(new Car(startX, y, width, height, speed));
+        entidades.add(new Car(startX, y, width, height, speed));
     }
 
     private void respawn() {
