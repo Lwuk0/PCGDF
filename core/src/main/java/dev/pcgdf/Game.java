@@ -167,12 +167,15 @@ public class Game extends ScreenAdapter {
     }
 
     private void spawnCar(int idx, float startX) {
-        float y = lanes.get(idx) + 5f;
-        float speed = laneSpeeds[idx];
         float height = GRID_SIZE - 10f;
         float width = height * 2f;
+        float y = lanes.get(idx) + 5f;
 
-        entidades.add(new Car(startX, y, width, height, speed));
+        for (Entidade e : entidades) {
+            if (e instanceof Car car && Math.abs(car.getY() - y) < 1f && startX < car.getX() + car.bounds.width + 30f && startX + width > car.getX() - 30f) return;
+        }
+
+        entidades.add(new Car(startX, y, width, height, laneSpeeds[idx]));
     }
 
     private void spawnCar(int idx) {
