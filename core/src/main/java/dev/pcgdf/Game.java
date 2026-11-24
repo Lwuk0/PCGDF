@@ -179,7 +179,7 @@ public class Game extends ScreenAdapter {
     }
 
     private void spawnCar(int idx) {
-        float startX = (laneSpeeds[idx] > 0) ? -(GRID_SIZE - 10f) * 2f : viewport.getWorldWidth();
+        float startX = (laneSpeeds[idx] > 0) ? - (GRID_SIZE - 10f) * 2f : viewport.getWorldWidth();
 
         spawnCar(idx, startX);
     }
