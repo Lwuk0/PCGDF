@@ -1,5 +1,7 @@
 package dev.pcgdf.entities;
 
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
@@ -12,6 +14,7 @@ public class Player extends Entidade {
     private final float gridSize;
     private final float worldWidth;
     private final float worldHeight;
+    public final Sound hit = Gdx.audio.newSound(Gdx.files.internal("sounds/hit.ogg"));
     private final Texture textura;
     private final Texture textura0; // bad
     private boolean frame = false; // bad bad bad code
@@ -41,6 +44,8 @@ public class Player extends Entidade {
     }
 
     public void perderVida() {
+        hit.play();
+
         if (vidas > 0) vidas--;
         if (vidas == 0) finalizar();
     }
@@ -74,5 +79,6 @@ public class Player extends Entidade {
     public void dispose() {
         textura.dispose();
         textura0.dispose();
+        hit.dispose();
     }
 }
