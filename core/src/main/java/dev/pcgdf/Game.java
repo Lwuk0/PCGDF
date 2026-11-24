@@ -21,7 +21,7 @@ public class Game extends ScreenAdapter {
     private static final float GRID_SIZE = 50f;
 
     private final ShapeRenderer shapeRender;
-    private final SpriteBatch carBatch;
+    private final SpriteBatch batch;
     private final Viewport viewport;
     private final Player player;
     private final Array<Entidade> entidades;
@@ -32,7 +32,7 @@ public class Game extends ScreenAdapter {
 
     public Game() {
         shapeRender = new ShapeRenderer();
-        carBatch = new SpriteBatch();
+        batch = new SpriteBatch();
         viewport = new FitViewport(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         lanes = new FloatArray();
 
@@ -68,13 +68,13 @@ public class Game extends ScreenAdapter {
 
         shapeRender.end();
 
-        carBatch.setProjectionMatrix(viewport.getCamera().combined);
-        carBatch.begin();
+        batch.setProjectionMatrix(viewport.getCamera().combined);
+        batch.begin();
         for (int i = 0; i < entidades.size; i++) {
-            if (entidades.get(i) instanceof Car car) car.render(carBatch);
+            if (entidades.get(i) instanceof Car car) car.render(batch);
         }
-        player.render(carBatch);
-        carBatch.end();
+        player.render(batch);
+        batch.end();
 
         Main.getInstance().batch.begin();
         Main.getInstance().font.getData().setScale(1.0f);
@@ -199,7 +199,7 @@ public class Game extends ScreenAdapter {
     @Override
     public void dispose() {
         shapeRender.dispose();
-        carBatch.dispose();
+        batch.dispose();
         player.dispose();
     }
 }
