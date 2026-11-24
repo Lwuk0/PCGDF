@@ -11,8 +11,8 @@ public class TeaVMLauncher {
     public static void main(String[] args) {
         WebApplicationConfiguration config = new WebApplicationConfiguration("canvas");
 
-        config.width = 800;
-        config.height = 600;
+        config.width = 1000;
+        config.height = 800;
         config.preloadListener = assetLoader -> assetLoader.loadScript("freetype.js");
 
         new WebApplication(new Main(), config);
