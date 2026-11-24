@@ -32,6 +32,13 @@ public class Game extends ScreenAdapter {
     private float[] laneSpawnTimers;
     private final float goalY;
 
+    private static final float FAIXA_LARGURA = GRID_SIZE * 2f;
+
+    private final Array<Car> carrosAzuis = new Array<>();
+
+    private boolean sinalVermelho = false;
+    private float sinalTimer = 0f;
+
     public Game() {
         shapeRender = new ShapeRenderer();
         batch = new SpriteBatch();
@@ -67,6 +74,8 @@ public class Game extends ScreenAdapter {
         shapeRender.setColor(0.95f, 0.75f, 0.15f, 1f);
         shapeRender.rect(0, goalY, viewport.getWorldWidth(), GRID_SIZE);
 
+        desenharFaixaDePedestre();
+
         for (int i = 0; i < entidades.size; i++) entidades.get(i).render(shapeRender);
 
         shapeRender.end();
@@ -79,6 +88,10 @@ public class Game extends ScreenAdapter {
 
         player.render(batch);
         batch.end();
+
+        shapeRender.begin(ShapeRenderer.ShapeType.Filled);
+        desenharSinal();
+        shapeRender.end();
 
         Main.getInstance().batch.begin();
         Main.getInstance().font.getData().setScale(1.0f);
@@ -103,6 +116,9 @@ public class Game extends ScreenAdapter {
     }
 
     private void update(float delta) {
+        atualizarSinal(delta);
+        atualizarVelocidadeDosCarros();
+
         IntStream.range(0, entidades.size).forEach(i -> entidades.get(i).update(delta));
 
         for (int i = 0; i < lanes.size; i++) {
@@ -126,7 +142,10 @@ public class Game extends ScreenAdapter {
                     return;
                 }
 
-                if (car.isOffScreen(viewport.getWorldWidth())) entidades.removeIndex(i);
+                if (car.isOffScreen(viewport.getWorldWidth())) {
+                    carrosAzuis.removeValue(car, true);
+                    entidades.removeIndex(i);
+                }
             }
         }
 
@@ -139,6 +158,8 @@ public class Game extends ScreenAdapter {
     private void setupLanes() {
         IntStream.iterate(entidades.size - 1, i -> i >= 0, i -> i - 1).filter(i -> entidades.get(i) instanceof Car).forEach(entidades::removeIndex);
         lanes.clear();
+
+        carrosAzuis.clear();
 
         float worldH = viewport.getWorldHeight();
         int totalRows = (int) (worldH / GRID_SIZE);
@@ -179,7 +200,10 @@ public class Game extends ScreenAdapter {
             if (e instanceof Car car && Math.abs(car.getY() - y) < 1f && startX < car.getX() + car.bounds.width + 30f && startX + width > car.getX() - 30f) return;
         }
 
-        entidades.add(new Car(startX, y, width, height, laneSpeeds[idx]));
+        Car novoCarro = new Car(startX, y, width, height, laneSpeeds[idx]);
+        entidades.add(novoCarro);
+
+        if (MathUtils.randomBoolean(0.5f)) carrosAzuis.add(novoCarro);
     }
 
     private void spawnCar(int idx) {
@@ -221,6 +245,112 @@ public class Game extends ScreenAdapter {
                 }
             }
         }
+    }
+
+    private void atualizarSinal(float delta) {
+        sinalTimer += delta;
+
+        float tempoDoSinal = sinalVermelho ? 3f : 5f;
+
+        if (sinalTimer >= tempoDoSinal) {
+            sinalTimer = 0f;
+            sinalVermelho = !sinalVermelho;
+        }
+    }
+
+    private void atualizarVelocidadeDosCarros() {
+        for (int i = 0; i < entidades.size; i++) {
+            if (!(entidades.get(i) instanceof Car car)) continue;
+
+            int faixa = getFaixaDoCarro(car);
+            if (faixa < 0) continue;
+
+            float velocidadeNormal = laneSpeeds[faixa];
+            boolean deveParar = false;
+
+            if (faixa == 0 && carrosAzuis.contains(car, true) && jogadorNaFaixa()) {
+                deveParar = estaChegandoNaFaixa(car, velocidadeNormal);
+            }
+
+            if (faixa == 1 && sinalVermelho) {
+                deveParar = true;
+            }
+
+            car.velocidade.x = deveParar ? 0f : velocidadeNormal;
+        }
+    }
+
+    private int getFaixaDoCarro(Car car) {
+        for (int i = 0; i < lanes.size; i++) {
+            if (Math.abs(car.getY() - (lanes.get(i) + 5f)) < 1f) return i;
+        }
+        return -1;
+    }
+
+    private boolean jogadorNaFaixa() {
+        float ruaY = lanes.get(0);
+        float centroDoJogador = player.getX() + GRID_SIZE / 2f;
+        float faixaX = getFaixaX();
+
+        boolean dentroDaFaixaNoX = centroDoJogador >= faixaX && centroDoJogador <= faixaX + FAIXA_LARGURA;
+        boolean pertoDaRuaNoY = player.getY() >= ruaY - GRID_SIZE - 1f && player.getY() <= ruaY + 1f;
+
+        return dentroDaFaixaNoX && pertoDaRuaNoY;
+    }
+
+    private boolean estaChegandoNaFaixa(Car car, float velocidadeNormal) {
+        float faixaX = getFaixaX();
+
+        if (velocidadeNormal > 0) {
+            float frente = car.getX() + car.bounds.width;
+            return frente >= faixaX - 15f && frente <= faixaX;
+        } else {
+            float frente = car.getX();
+            float fimDaFaixa = faixaX + FAIXA_LARGURA;
+            return frente <= fimDaFaixa + 15f && frente >= fimDaFaixa;
+        }
+    }
+
+    private float getFaixaX() {
+        return viewport.getWorldWidth() / 2f - FAIXA_LARGURA / 2f;
+    }
+
+    private void desenharFaixaDePedestre() {
+        if (lanes.size < 1) return;
+
+        float y = lanes.get(0);
+        float x = getFaixaX();
+
+        shapeRender.setColor(0.93f, 0.93f, 0.93f, 1f);
+
+        for (int i = 0; i < 5; i++) {
+            shapeRender.rect(x, y + 2f + i * 10f, FAIXA_LARGURA, 6f);
+        }
+    }
+
+    private void desenharSinal() {
+        if (lanes.size < 2) return;
+
+        float x = 14f;
+        float y = lanes.get(1) + GRID_SIZE + 4f;
+        float cx = x + 12f;
+
+        shapeRender.setColor(0.35f, 0.35f, 0.38f, 1f);
+        shapeRender.rect(x + 9f, y - 4f, 6f, 4f);
+
+        shapeRender.setColor(0.08f, 0.08f, 0.08f, 1f);
+        shapeRender.rect(x, y, 24f, 42f);
+
+        if (sinalVermelho) shapeRender.setColor(1f, 0.15f, 0.15f, 1f);
+        else shapeRender.setColor(0.3f, 0.05f, 0.05f, 1f);
+        shapeRender.circle(cx, y + 33f, 6f);
+
+        shapeRender.setColor(0.3f, 0.25f, 0.05f, 1f);
+        shapeRender.circle(cx, y + 21f, 6f);
+
+        if (sinalVermelho) shapeRender.setColor(0.05f, 0.3f, 0.08f, 1f);
+        else shapeRender.setColor(0.2f, 1f, 0.3f, 1f);
+        shapeRender.circle(cx, y + 9f, 6f);
     }
 
     @Override
