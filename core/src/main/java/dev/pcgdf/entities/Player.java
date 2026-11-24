@@ -8,8 +8,6 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import dev.pcgdf.Entidade;
 
-import java.util.concurrent.ThreadLocalRandom;
-
 public class Player extends Entidade {
     public static final int VIDAS_INICIAIS = 5;
 
@@ -44,11 +42,11 @@ public class Player extends Entidade {
         bounds.y = MathUtils.clamp(bounds.y + dirY * gridSize, 0, worldHeight - bounds.height);
         frame = !frame;
 
-        step.play(1f, ThreadLocalRandom.current().nextFloat(.75f, 1.25f), 1f);
+        step.play(1f, MathUtils.random(.75f, 1.25f), 1f);
     }
 
     public void perderVida() {
-        hit.play(.25f, ThreadLocalRandom.current().nextFloat(.75f, 1f), 1f);
+        hit.play(.25f, MathUtils.random(.75f, 1.25f), 1f);
 
         if (vidas > 0) vidas--;
         if (vidas == 0) finalizar();
