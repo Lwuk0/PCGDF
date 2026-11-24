@@ -121,9 +121,17 @@ public class TitleScreen extends ScreenAdapter {
         botaoSair.renderText(game.batch, game.fonteMedia, 0.8f, mouse);
         game.batch.end();
 
-        if (Gdx.input.justTouched()) {
-            if (hoverJogar) game.setScreen(new Game());
-            if (hoverCreditos) mostrarCreditos = true;
+        if (Gdx.input.justTouched()) { // bad code
+            if (hoverJogar) {
+                game.setScreen(new Game());
+                botaoJogar.play();
+            }
+
+            if (hoverCreditos) {
+                mostrarCreditos = true;
+                botaoJogar.play();
+            }
+
             if (hoverSair) Gdx.app.exit();
         }
     }

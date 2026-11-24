@@ -1,5 +1,7 @@
 package dev.pcgdf.gui;
 
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
@@ -15,6 +17,7 @@ public class MenuButton {
     private final Color hoverColor = new Color(1f, 0.82f, 0.12f, 1f);
     private final Color textColor;
     private final Color textHoverColor = new Color(0.1f, 0.1f, 0.12f, 1f);
+    public final Sound clickSound = Gdx.audio.newSound(Gdx.files.internal("sounds/click.ogg"));
 
     private final GlyphLayout layout = new GlyphLayout();
 
@@ -52,5 +55,9 @@ public class MenuButton {
 
     public Rectangle getBounds() {
         return bounds;
+    }
+
+    public void play() { // bad code
+        clickSound.play();
     }
 }
