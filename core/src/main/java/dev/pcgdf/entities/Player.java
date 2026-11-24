@@ -1,6 +1,7 @@
 package dev.pcgdf.entities;
 
-import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import dev.pcgdf.Entidade;
@@ -11,6 +12,7 @@ public class Player extends Entidade {
     private final float gridSize;
     private final float worldWidth;
     private final float worldHeight;
+    private final Texture textura;
     private int vidas = VIDAS_INICIAIS;
 
     public Player(float startX, float startY, float gridSize, float worldWidth, float worldHeight) {
@@ -19,6 +21,9 @@ public class Player extends Entidade {
         this.gridSize = gridSize;
         this.worldWidth = worldWidth;
         this.worldHeight = worldHeight;
+
+        textura = new Texture("protagonista.png");
+        textura.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
     }
 
     public void move(int dirX, int dirY) {
@@ -39,15 +44,16 @@ public class Player extends Entidade {
 
     @Override
     public void update(float delta) {
-        // Movimento comandado por Game, por passos discretos.
     }
 
     @Override
     public void render(ShapeRenderer renderer) {
+    }
+
+    public void render(SpriteBatch batch) {
         if (!ativa) return;
 
-        renderer.setColor(Color.WHITE);
-        renderer.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+        batch.draw(textura, bounds.x, bounds.y, bounds.width, bounds.height);
     }
 
     public void reset(float startX, float startY) {
@@ -56,5 +62,9 @@ public class Player extends Entidade {
         setPosition(startX + padding, startY + padding);
 
         if (vidas > 0) iniciar();
+    }
+
+    public void dispose() {
+        textura.dispose();
     }
 }
