@@ -14,6 +14,7 @@ import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import dev.pcgdf.entities.Car;
 import dev.pcgdf.entities.Player;
+import dev.pcgdf.fase.Decoration;
 
 import java.util.stream.IntStream;
 
@@ -25,6 +26,7 @@ public class Game extends ScreenAdapter {
     private final Viewport viewport;
     private final Player player;
     private final Array<Entidade> entidades;
+    private final Array<Decoration> decorations = new Array<>();
     private final FloatArray lanes;
     private float[] laneSpeeds;
     private float[] laneSpawnTimers;
@@ -47,6 +49,7 @@ public class Game extends ScreenAdapter {
         entidades.add(player);
 
         setupLanes();
+        setupDecorations();
     }
 
     @Override
@@ -70,9 +73,10 @@ public class Game extends ScreenAdapter {
 
         batch.setProjectionMatrix(viewport.getCamera().combined);
         batch.begin();
-        for (int i = 0; i < entidades.size; i++) {
-            if (entidades.get(i) instanceof Car car) car.render(batch);
-        }
+
+        for (Decoration decoration : decorations) decoration.render(batch);
+        for (int i = 0; i < entidades.size; i++) if (entidades.get(i) instanceof Car car) car.render(batch);
+
         player.render(batch);
         batch.end();
 
@@ -189,6 +193,34 @@ public class Game extends ScreenAdapter {
 
         player.reset(viewport.getWorldWidth() / 2f, 0f);
         setupLanes();
+        setupDecorations();
+    }
+
+    private void setupDecorations() {
+        decorations.clear();
+
+        for (int row = 0; row < (int)(viewport.getWorldHeight() / GRID_SIZE); row++) {
+            float y = row * GRID_SIZE;
+
+            boolean isRoad = false;
+
+            for (int i = 0; i < lanes.size; i++) {
+                if (lanes.get(i) == y) {
+                    isRoad = true;
+                    break;
+                }
+            }
+
+            if (isRoad) continue;
+
+            for (int side = 0; side < 2; side++) {
+                if (MathUtils.randomBoolean(0.7f)) {
+                    float x = side == 0 ? MathUtils.random(0, 2) * GRID_SIZE : viewport.getWorldWidth() - GRID_SIZE * MathUtils.random(1, 3);
+
+                    decorations.add(new Decoration(x, y, GRID_SIZE, GRID_SIZE));
+                }
+            }
+        }
     }
 
     @Override
@@ -201,5 +233,6 @@ public class Game extends ScreenAdapter {
         shapeRender.dispose();
         batch.dispose();
         player.dispose();
+        Decoration.dispose();
     }
 }
