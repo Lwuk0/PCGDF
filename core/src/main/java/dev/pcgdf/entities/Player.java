@@ -8,6 +8,8 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import dev.pcgdf.Entidade;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 public class Player extends Entidade {
     public static final int VIDAS_INICIAIS = 5;
 
@@ -15,6 +17,7 @@ public class Player extends Entidade {
     private final float worldWidth;
     private final float worldHeight;
     public final Sound hit = Gdx.audio.newSound(Gdx.files.internal("sounds/hit.ogg"));
+    public final Sound step = Gdx.audio.newSound(Gdx.files.internal("sounds/step.ogg"));
     private final Texture textura;
     private final Texture textura0; // bad
     private boolean frame = false; // bad bad bad code
@@ -39,12 +42,13 @@ public class Player extends Entidade {
 
         bounds.x = MathUtils.clamp(bounds.x + dirX * gridSize, 0, worldWidth - bounds.width);
         bounds.y = MathUtils.clamp(bounds.y + dirY * gridSize, 0, worldHeight - bounds.height);
-
         frame = !frame;
+
+        step.play(1f, ThreadLocalRandom.current().nextFloat(.75f, 1.25f), 1f);
     }
 
     public void perderVida() {
-        hit.play();
+        hit.play(.25f, ThreadLocalRandom.current().nextFloat(.75f, 1f), 1f);
 
         if (vidas > 0) vidas--;
         if (vidas == 0) finalizar();
@@ -80,5 +84,6 @@ public class Player extends Entidade {
         textura.dispose();
         textura0.dispose();
         hit.dispose();
+        step.dispose();
     }
 }
