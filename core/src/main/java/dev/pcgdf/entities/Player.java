@@ -13,6 +13,8 @@ public class Player extends Entidade {
     private final float worldWidth;
     private final float worldHeight;
     private final Texture textura;
+    private final Texture textura0; // bad
+    private boolean frame = false; // bad bad bad code
     private int vidas = VIDAS_INICIAIS;
 
     public Player(float startX, float startY, float gridSize, float worldWidth, float worldHeight) {
@@ -22,8 +24,11 @@ public class Player extends Entidade {
         this.worldWidth = worldWidth;
         this.worldHeight = worldHeight;
 
-        textura = new Texture("protagonista.png");
+        textura = new Texture("player.png");
+        textura0 = new Texture("player1.png");
+
         textura.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        textura0.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
     }
 
     public void move(int dirX, int dirY) {
@@ -31,6 +36,8 @@ public class Player extends Entidade {
 
         bounds.x = MathUtils.clamp(bounds.x + dirX * gridSize, 0, worldWidth - bounds.width);
         bounds.y = MathUtils.clamp(bounds.y + dirY * gridSize, 0, worldHeight - bounds.height);
+
+        frame = !frame;
     }
 
     public void perderVida() {
@@ -53,7 +60,7 @@ public class Player extends Entidade {
     public void render(SpriteBatch batch) {
         if (!ativa) return;
 
-        batch.draw(textura, bounds.x, bounds.y, bounds.width, bounds.height);
+        batch.draw(frame ? textura0 : textura, bounds.x, bounds.y, bounds.width, bounds.height);
     }
 
     public void reset(float startX, float startY) {
@@ -66,5 +73,6 @@ public class Player extends Entidade {
 
     public void dispose() {
         textura.dispose();
+        textura0.dispose();
     }
 }
