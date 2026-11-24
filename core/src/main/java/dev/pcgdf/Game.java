@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
@@ -20,9 +21,10 @@ public class Game extends ScreenAdapter {
     private static final float GRID_SIZE = 50f;
 
     private final ShapeRenderer shapeRender;
+    private final SpriteBatch carBatch;
     private final Viewport viewport;
     private final Player player;
-    private final Array<Entidade> entidades; // Não irei utilizar uma lista, pq no contexto de uma framework, um array usa menos recurso doq uma lista, ainda mais qnd os elementos executam funções de renderizar. (garbage collector do java).
+    private final Array<Entidade> entidades;
     private final FloatArray lanes;
     private float[] laneSpeeds;
     private float[] laneSpawnTimers;
@@ -30,6 +32,7 @@ public class Game extends ScreenAdapter {
 
     public Game() {
         shapeRender = new ShapeRenderer();
+        carBatch = new SpriteBatch();
         viewport = new FitViewport(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         lanes = new FloatArray();
 
@@ -65,6 +68,14 @@ public class Game extends ScreenAdapter {
 
         shapeRender.end();
 
+        carBatch.setProjectionMatrix(viewport.getCamera().combined);
+        carBatch.begin();
+        for (int i = 0; i < entidades.size; i++) {
+            if (entidades.get(i) instanceof Car car) car.render(carBatch);
+        }
+        player.render(carBatch);
+        carBatch.end();
+
         Main.getInstance().batch.begin();
         Main.getInstance().font.getData().setScale(1.0f);
         Main.getInstance().font.setColor(Color.WHITE);
@@ -72,7 +83,7 @@ public class Game extends ScreenAdapter {
         Main.getInstance().batch.end();
     }
 
-    private void handleInput() { // trocar pro input handler do libgdx
+    private void handleInput() {
         boolean up = Gdx.input.isKeyJustPressed(Input.Keys.UP) || Gdx.input.isKeyJustPressed(Input.Keys.W);
         boolean down = Gdx.input.isKeyJustPressed(Input.Keys.DOWN) || Gdx.input.isKeyJustPressed(Input.Keys.S);
         boolean left = Gdx.input.isKeyJustPressed(Input.Keys.LEFT) || Gdx.input.isKeyJustPressed(Input.Keys.A);
@@ -145,7 +156,7 @@ public class Game extends ScreenAdapter {
         laneSpawnTimers = new float[lanes.size];
 
         for (int i = 0; i < lanes.size; i++) {
-            float direction = (i % 2 == 0) ? 1f : -1f; // direção dos carros (deterministic)
+            float direction = (i % 2 == 0) ? 1f : -1f;
             int ongoing = MathUtils.random(1, 3);
 
             laneSpeeds[i] = direction * MathUtils.random(120f, 260f);
@@ -158,14 +169,14 @@ public class Game extends ScreenAdapter {
     private void spawnCar(int idx, float startX) {
         float y = lanes.get(idx) + 5f;
         float speed = laneSpeeds[idx];
-        float width = MathUtils.random(60f, 100f);
         float height = GRID_SIZE - 10f;
+        float width = height * 2f;
 
         entidades.add(new Car(startX, y, width, height, speed));
     }
 
     private void spawnCar(int idx) {
-        float startX = (laneSpeeds[idx] > 0) ? -MathUtils.random(60f, 100f) : viewport.getWorldWidth();
+        float startX = (laneSpeeds[idx] > 0) ? -(GRID_SIZE - 10f) * 2f : viewport.getWorldWidth();
 
         spawnCar(idx, startX);
     }
@@ -185,5 +196,7 @@ public class Game extends ScreenAdapter {
     @Override
     public void dispose() {
         shapeRender.dispose();
+        carBatch.dispose();
+        player.dispose();
     }
 }
