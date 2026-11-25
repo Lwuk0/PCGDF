@@ -33,6 +33,7 @@ public class Game extends ScreenAdapter {
     private final float goalY;
 
     private static final float FAIXA_LARGURA = GRID_SIZE * 2f;
+    private static final float CALCADA_ALTURA = 14f;
 
     private final Array<Car> carrosAzuis = new Array<>();
 
@@ -74,6 +75,7 @@ public class Game extends ScreenAdapter {
         shapeRender.setColor(0.95f, 0.75f, 0.15f, 1f);
         shapeRender.rect(0, goalY, viewport.getWorldWidth(), GRID_SIZE);
 
+        desenharCalcadas();
         desenharFaixaDePedestre();
 
         for (int i = 0; i < entidades.size; i++) entidades.get(i).render(shapeRender);
@@ -223,6 +225,8 @@ public class Game extends ScreenAdapter {
     private void setupDecorations() {
         decorations.clear();
 
+        int colunas = (int) (viewport.getWorldWidth() / GRID_SIZE);
+
         for (int row = 0; row < (int)(viewport.getWorldHeight() / GRID_SIZE); row++) {
             float y = row * GRID_SIZE;
 
@@ -237,14 +241,46 @@ public class Game extends ScreenAdapter {
 
             if (isRoad) continue;
 
-            for (int side = 0; side < 2; side++) {
-                if (MathUtils.randomBoolean(0.7f)) {
-                    float x = side == 0 ? MathUtils.random(0, 2) * GRID_SIZE : viewport.getWorldWidth() - GRID_SIZE * MathUtils.random(1, 3);
-
-                    decorations.add(new Decoration(x, y, GRID_SIZE, GRID_SIZE));
+            for (int col = 0; col < colunas; col++) {
+                if (MathUtils.randomBoolean(0.25f)) {
+                    decorations.add(new Decoration(col * GRID_SIZE, y, GRID_SIZE, GRID_SIZE));
                 }
             }
         }
+    }
+
+    private int getRuaDaFaixa(int faixa) {
+        int rua = 0;
+
+        for (int i = 1; i <= faixa; i++) {
+            if (lanes.get(i) - lanes.get(i - 1) > GRID_SIZE + 1f) rua++;
+        }
+
+        return rua;
+    }
+
+    private int getTotalRuas() {
+        if (lanes.size == 0) return 0;
+
+        return getRuaDaFaixa(lanes.size - 1) + 1;
+    }
+
+    private float getRuaBaseY(int rua) {
+        for (int i = 0; i < lanes.size; i++) {
+            if (getRuaDaFaixa(i) == rua) return lanes.get(i);
+        }
+
+        return 0f;
+    }
+
+    private float getRuaTopoY(int rua) {
+        float topo = 0f;
+
+        for (int i = 0; i < lanes.size; i++) {
+            if (getRuaDaFaixa(i) == rua) topo = lanes.get(i) + GRID_SIZE;
+        }
+
+        return topo;
     }
 
     private void atualizarSinal(float delta) {
@@ -265,14 +301,15 @@ public class Game extends ScreenAdapter {
             int faixa = getFaixaDoCarro(car);
             if (faixa < 0) continue;
 
+            int rua = getRuaDaFaixa(faixa);
             float velocidadeNormal = laneSpeeds[faixa];
             boolean deveParar = false;
 
-            if (faixa == 0 && carrosAzuis.contains(car, true) && jogadorNaFaixa()) {
+            if (rua == 0 && carrosAzuis.contains(car, true) && jogadorNaFaixa()) {
                 deveParar = estaChegandoNaFaixa(car, velocidadeNormal);
             }
 
-            if (faixa == 1 && sinalVermelho) {
+            if (rua == 1 && sinalVermelho) {
                 deveParar = true;
             }
 
@@ -288,12 +325,15 @@ public class Game extends ScreenAdapter {
     }
 
     private boolean jogadorNaFaixa() {
-        float ruaY = lanes.get(0);
+        if (getTotalRuas() < 1) return false;
+
+        float base = getRuaBaseY(0);
+        float topo = getRuaTopoY(0);
         float centroDoJogador = player.getX() + GRID_SIZE / 2f;
         float faixaX = getFaixaX();
 
         boolean dentroDaFaixaNoX = centroDoJogador >= faixaX && centroDoJogador <= faixaX + FAIXA_LARGURA;
-        boolean pertoDaRuaNoY = player.getY() >= ruaY - GRID_SIZE - 1f && player.getY() <= ruaY + 1f;
+        boolean pertoDaRuaNoY = player.getY() >= base - GRID_SIZE - 1f && player.getY() <= topo - GRID_SIZE + 1f;
 
         return dentroDaFaixaNoX && pertoDaRuaNoY;
     }
@@ -315,42 +355,58 @@ public class Game extends ScreenAdapter {
         return viewport.getWorldWidth() / 2f - FAIXA_LARGURA / 2f;
     }
 
-    private void desenharFaixaDePedestre() {
-        if (lanes.size < 1) return;
+    private void desenharCalcadas() {
+        float largura = viewport.getWorldWidth();
 
-        float y = lanes.get(0);
+        for (int rua = 0; rua < getTotalRuas(); rua++) {
+            float base = getRuaBaseY(rua);
+            float topo = getRuaTopoY(rua);
+
+            shapeRender.setColor(0.78f, 0.78f, 0.75f, 1f);
+            shapeRender.rect(0, base - CALCADA_ALTURA, largura, CALCADA_ALTURA);
+            shapeRender.rect(0, topo, largura, CALCADA_ALTURA);
+
+            shapeRender.setColor(0.55f, 0.55f, 0.55f, 1f);
+            shapeRender.rect(0, base - 2f, largura, 2f);
+            shapeRender.rect(0, topo, largura, 2f);
+        }
+    }
+
+    private void desenharFaixaDePedestre() {
+        if (getTotalRuas() < 1) return;
+
+        float base = getRuaBaseY(0);
+        float topo = getRuaTopoY(0);
         float x = getFaixaX();
+        int listras = (int) ((topo - base) / 10f);
 
         shapeRender.setColor(0.93f, 0.93f, 0.93f, 1f);
 
-        for (int i = 0; i < 5; i++) {
-            shapeRender.rect(x, y + 2f + i * 10f, FAIXA_LARGURA, 6f);
+        for (int i = 0; i < listras; i++) {
+            shapeRender.rect(x, base + 2f + i * 10f, FAIXA_LARGURA, 6f);
         }
     }
 
     private void desenharSinal() {
-        if (lanes.size < 2) return;
+        if (getTotalRuas() < 2) return;
 
         float x = 14f;
-        float y = lanes.get(1) + GRID_SIZE + 4f;
-        float cx = x + 12f;
-
-        shapeRender.setColor(0.35f, 0.35f, 0.38f, 1f);
-        shapeRender.rect(x + 9f, y - 4f, 6f, 4f);
+        float y = getRuaTopoY(1) + 4f;
+        float cx = x + 11f;
 
         shapeRender.setColor(0.08f, 0.08f, 0.08f, 1f);
-        shapeRender.rect(x, y, 24f, 42f);
+        shapeRender.rect(x, y, 22f, 38f);
 
         if (sinalVermelho) shapeRender.setColor(1f, 0.15f, 0.15f, 1f);
         else shapeRender.setColor(0.3f, 0.05f, 0.05f, 1f);
-        shapeRender.circle(cx, y + 33f, 6f);
+        shapeRender.circle(cx, y + 30f, 5f);
 
         shapeRender.setColor(0.3f, 0.25f, 0.05f, 1f);
-        shapeRender.circle(cx, y + 21f, 6f);
+        shapeRender.circle(cx, y + 19f, 5f);
 
         if (sinalVermelho) shapeRender.setColor(0.05f, 0.3f, 0.08f, 1f);
         else shapeRender.setColor(0.2f, 1f, 0.3f, 1f);
-        shapeRender.circle(cx, y + 9f, 6f);
+        shapeRender.circle(cx, y + 8f, 5f);
     }
 
     @Override
