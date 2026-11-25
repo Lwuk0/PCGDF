@@ -3,6 +3,8 @@ package dev.pcgdf;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.ScreenAdapter;
+import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
@@ -24,7 +26,6 @@ import java.util.stream.IntStream;
 public class Game extends ScreenAdapter {
     private static final float GRID_SIZE = 50f;
 
-    // Zoom: quanto menor o mundo, maior fica tudo na tela (mantenha 16:9)
     private static final float WORLD_LARGURA = 1280f;
     private static final float WORLD_ALTURA = 720f;
 
@@ -34,11 +35,37 @@ public class Game extends ScreenAdapter {
     private final Player player;
     private final Array<Entidade> entidades;
     private final Array<Decoration> decorations = new Array<>();
+
+    private static final int ARVORE = 0;
+    private static final int CASA = 1;
+    private static final int LAGO = 2;
+    private static final int FLOR = 3;
+    private static final int POSTE = 4;
+
+    private static final Color[] CORES_FLOR = {
+        Color.RED, Color.PINK, Color.WHITE, Color.ORANGE, Color.PURPLE
+    };
+
+    private static class Enfeite {
+        final int tipo;
+        final float x, y;
+        final int cor;
+
+        Enfeite(int tipo, float x, float y, int cor) {
+            this.tipo = tipo;
+            this.x = x;
+            this.y = y;
+            this.cor = cor;
+        }
+    }
+
+    private final Array<Enfeite> enfeites = new Array<>();
+
+    private Music musica;
     private final FloatArray lanes;
     private float[] laneSpeeds;
     private float[] laneSpawnTimers;
 
-    // Sem final: agora a meta muda de lugar a cada fase (calculada em setupLanes)
     private float goalY;
 
     private static final float FAIXA_LARGURA = GRID_SIZE * 2f;
@@ -86,6 +113,17 @@ public class Game extends ScreenAdapter {
 
         setupLanes();
         setupDecorations();
+
+        FileHandle arquivoMusica = Gdx.files.internal("musica.mp3");
+
+        if (arquivoMusica.exists()) {
+            musica = Gdx.audio.newMusic(arquivoMusica);
+            musica.setLooping(true);
+            musica.setVolume(0.4f);
+            musica.play();
+        } else {
+            Gdx.app.log("AUDIO", "musica.mp3 nao encontrada na pasta assets");
+        }
     }
 
     @Override
@@ -100,8 +138,8 @@ public class Game extends ScreenAdapter {
         shapeRender.setColor(0.22f, 0.22f, 0.25f, 1f);
         for (int i = 0; i < lanes.size; i++) shapeRender.rect(0, lanes.get(i), viewport.getWorldWidth(), GRID_SIZE);
 
-        shapeRender.setColor(0.95f, 0.75f, 0.15f, 1f);
-        shapeRender.rect(0, goalY, viewport.getWorldWidth(), GRID_SIZE);
+        desenharMeta();
+        desenharEnfeites();
 
         desenharCalcadas();
         desenharFaixasDePedestre();
@@ -162,6 +200,11 @@ public class Game extends ScreenAdapter {
 
         if (dx != 0) dy = 0;
         if (dx != 0 || dy != 0) player.move(dx, dy);
+
+        if (musica != null && Gdx.input.isKeyJustPressed(Input.Keys.M)) {
+            if (musica.isPlaying()) musica.pause();
+            else musica.play();
+        }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) Main.getInstance().setScreen(new TitleScreen());
     }
@@ -260,9 +303,8 @@ public class Game extends ScreenAdapter {
             linhaAtual += pistasDaRua[rua] + espaco;
         }
 
-        // A meta fica 3 linhas acima da ultima pista
         float ultimaPista = lanes.size > 0 ? lanes.peek() : 0f;
-        float metaMaxima = (totalRows - 1) * GRID_SIZE; // nunca passa do topo da tela
+        float metaMaxima = (totalRows - 1) * GRID_SIZE;
         goalY = Math.min(ultimaPista + GRID_SIZE * 3f, metaMaxima);
 
         laneSpeeds = new float[lanes.size];
@@ -310,6 +352,7 @@ public class Game extends ScreenAdapter {
 
         if (player.getVidas() <= 0) {
             gameOver = true;
+            if (musica != null) musica.pause();
             return;
         }
 
@@ -320,13 +363,15 @@ public class Game extends ScreenAdapter {
 
     private void setupDecorations() {
         decorations.clear();
+        enfeites.clear();
 
         int colunas = (int) (viewport.getWorldWidth() / GRID_SIZE);
+        int linhas = (int) (viewport.getWorldHeight() / GRID_SIZE);
 
-        for (int row = 0; row < (int)(viewport.getWorldHeight() / GRID_SIZE); row++) {
+        for (int row = 0; row < linhas; row++) {
             float y = row * GRID_SIZE;
 
-            if (y > goalY) continue; // nao decora acima da meta
+            if (y >= goalY) continue;
 
             boolean isRoad = false;
 
@@ -339,17 +384,141 @@ public class Game extends ScreenAdapter {
 
             if (isRoad) continue;
 
+            boolean podeGrande = row >= 1;
+
             for (int col = 0; col < colunas; col++) {
-                if (MathUtils.randomBoolean(0.25f)) {
-                    decorations.add(new Decoration(col * GRID_SIZE, y, GRID_SIZE, GRID_SIZE));
+                float x = col * GRID_SIZE;
+                float sorte = MathUtils.random();
+
+                if (podeGrande && sorte < 0.04f && col < colunas - 1) {
+                    enfeites.add(new Enfeite(CASA, x, y, MathUtils.random(0, 2)));
+                    col++;
+                } else if (podeGrande && sorte < 0.06f && col < colunas - 1) {
+                    enfeites.add(new Enfeite(LAGO, x, y, 0));
+                    col++;
+                } else if (podeGrande && sorte < 0.13f) {
+                    enfeites.add(new Enfeite(ARVORE, x, y, 0));
+                } else if (podeGrande && sorte < 0.15f) {
+                    enfeites.add(new Enfeite(POSTE, x, y, 0));
+                } else if (sorte < 0.30f) {
+                    enfeites.add(new Enfeite(FLOR, x, y, MathUtils.random(0, CORES_FLOR.length - 1)));
+                } else if (MathUtils.randomBoolean(0.25f)) {
+                    decorations.add(new Decoration(x, y, GRID_SIZE, GRID_SIZE));
                 }
             }
         }
     }
 
+    private void desenharMeta() {
+        float quad = GRID_SIZE / 2f;
+        int colunas = (int) (viewport.getWorldWidth() / quad) + 1;
+
+        for (int i = 0; i < colunas; i++) {
+            for (int j = 0; j < 2; j++) {
+                if ((i + j) % 2 == 0) shapeRender.setColor(0.95f, 0.75f, 0.15f, 1f);
+                else shapeRender.setColor(1f, 1f, 1f, 1f);
+
+                shapeRender.rect(i * quad, goalY + j * quad, quad, quad);
+            }
+        }
+    }
+
+    private void desenharEnfeites() {
+        for (int i = 0; i < enfeites.size; i++) {
+            Enfeite e = enfeites.get(i);
+
+            switch (e.tipo) {
+                case ARVORE -> desenharArvore(e.x, e.y);
+                case CASA -> desenharCasa(e.x, e.y, e.cor);
+                case LAGO -> desenharLago(e.x, e.y);
+                case FLOR -> desenharFlores(e.x, e.y, e.cor);
+                case POSTE -> desenharPoste(e.x, e.y);
+            }
+        }
+    }
+
+    private void desenharArvore(float x, float y) {
+        shapeRender.setColor(0.12f, 0.42f, 0.17f, 1f);
+        shapeRender.ellipse(x + 8f, y + 2f, 34f, 10f);
+
+        shapeRender.setColor(0.45f, 0.28f, 0.13f, 1f);
+        shapeRender.rect(x + 21f, y + 5f, 8f, 18f);
+
+        shapeRender.setColor(0.10f, 0.40f, 0.15f, 1f);
+        shapeRender.circle(x + 25f, y + 32f, 15f);
+        shapeRender.circle(x + 14f, y + 26f, 11f);
+        shapeRender.circle(x + 36f, y + 26f, 11f);
+
+        shapeRender.setColor(0.25f, 0.62f, 0.25f, 1f);
+        shapeRender.circle(x + 21f, y + 36f, 7f);
+    }
+
+    private void desenharCasa(float x, float y, int cor) {
+        float largura = GRID_SIZE * 2f - 8f;
+
+        if (cor == 0) shapeRender.setColor(0.95f, 0.88f, 0.70f, 1f);
+        else if (cor == 1) shapeRender.setColor(0.95f, 0.75f, 0.75f, 1f);
+        else shapeRender.setColor(0.72f, 0.85f, 0.95f, 1f);
+
+        shapeRender.rect(x + 4f, y + 2f, largura, 28f);
+
+        shapeRender.setColor(0.65f, 0.20f, 0.15f, 1f);
+        shapeRender.triangle(x, y + 30f, x + GRID_SIZE * 2f, y + 30f, x + GRID_SIZE, y + 48f);
+
+        shapeRender.setColor(0.40f, 0.25f, 0.12f, 1f);
+        shapeRender.rect(x + GRID_SIZE - 6f, y + 2f, 12f, 18f);
+
+        shapeRender.setColor(0.55f, 0.80f, 0.95f, 1f);
+        shapeRender.rect(x + 14f, y + 12f, 14f, 12f);
+        shapeRender.rect(x + GRID_SIZE * 2f - 28f, y + 12f, 14f, 12f);
+    }
+
+    private void desenharLago(float x, float y) {
+        float largura = GRID_SIZE * 2f - 8f;
+
+        shapeRender.setColor(0.60f, 0.48f, 0.28f, 1f);
+        shapeRender.ellipse(x + 2f, y + 6f, largura + 4f, 38f);
+
+        shapeRender.setColor(0.20f, 0.55f, 0.85f, 1f);
+        shapeRender.ellipse(x + 5f, y + 9f, largura - 2f, 32f);
+
+        shapeRender.setColor(0.55f, 0.80f, 0.95f, 1f);
+        shapeRender.ellipse(x + 22f, y + 26f, 28f, 8f);
+    }
+
+    private void desenharFlores(float x, float y, int cor) {
+        desenharUmaFlor(x + 10f, y + 12f, CORES_FLOR[cor]);
+        desenharUmaFlor(x + 28f, y + 30f, CORES_FLOR[(cor + 1) % CORES_FLOR.length]);
+        desenharUmaFlor(x + 38f, y + 14f, CORES_FLOR[cor]);
+    }
+
+    private void desenharUmaFlor(float cx, float cy, Color corPetala) {
+        shapeRender.setColor(0.10f, 0.40f, 0.15f, 1f);
+        shapeRender.rect(cx - 1f, cy - 8f, 2f, 8f);
+
+        shapeRender.setColor(corPetala);
+        shapeRender.circle(cx - 3f, cy, 3f);
+        shapeRender.circle(cx + 3f, cy, 3f);
+        shapeRender.circle(cx, cy + 3f, 3f);
+        shapeRender.circle(cx, cy - 3f, 3f);
+
+        shapeRender.setColor(1f, 0.85f, 0.1f, 1f);
+        shapeRender.circle(cx, cy, 2f);
+    }
+
+    private void desenharPoste(float x, float y) {
+        shapeRender.setColor(0.25f, 0.25f, 0.28f, 1f);
+        shapeRender.rect(x + 23f, y + 4f, 4f, 34f);
+        shapeRender.rect(x + 18f, y + 4f, 14f, 4f);
+
+        shapeRender.setColor(1f, 0.92f, 0.45f, 1f);
+        shapeRender.circle(x + 25f, y + 41f, 6f);
+    }
+
     private float getMultiplicadorDeVelocidade() {
         return Math.min(1f + (fase - 1) * 0.3f, 4f);
     }
+
     private void mostrarMensagem(String texto) {
         mensagem = texto;
         mensagemTimer = 3.5f;
@@ -613,6 +782,15 @@ public class Game extends ScreenAdapter {
     @Override
     public void resize(int width, int height) {
         viewport.update(width, height, true);
+    }
+
+    @Override
+    public void hide() {
+        if (musica != null) {
+            musica.stop();
+            musica.dispose();
+            musica = null;
+        }
     }
 
     @Override

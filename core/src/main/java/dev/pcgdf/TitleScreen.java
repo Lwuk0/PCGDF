@@ -37,7 +37,10 @@ public class TitleScreen extends ScreenAdapter {
         "Natanael dos Santos",
         "Lucas Gabriel Aguiar Monteiro",
         "Victor Campos Mansilla",
-        "Lucas Gabriel Soares do Nascimento"
+        "Lucas Gabriel Soares do Nascimento",
+
+        "Musica: \"Pixel Peeker Polka - faster\" por Kevin MacLeod (incompetech.com)\n" +
+            "Licenca: Creative Commons Attribution 3.0 (CC BY 3.0)"
     };
 
     private final Color amarelo = new Color(1f, 0.82f, 0.12f, 1f);
