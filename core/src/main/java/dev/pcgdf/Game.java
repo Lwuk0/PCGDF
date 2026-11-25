@@ -18,10 +18,15 @@ import dev.pcgdf.entities.Car;
 import dev.pcgdf.entities.Player;
 import dev.pcgdf.fase.Decoration;
 
+import java.util.Arrays;
 import java.util.stream.IntStream;
 
 public class Game extends ScreenAdapter {
     private static final float GRID_SIZE = 50f;
+
+    // Zoom: quanto menor o mundo, maior fica tudo na tela (mantenha 16:9)
+    private static final float WORLD_LARGURA = 1280f;
+    private static final float WORLD_ALTURA = 720f;
 
     private final ShapeRenderer shapeRender;
     private final SpriteBatch batch;
@@ -32,11 +37,15 @@ public class Game extends ScreenAdapter {
     private final FloatArray lanes;
     private float[] laneSpeeds;
     private float[] laneSpawnTimers;
-    private final float goalY;
+
+    // Sem final: agora a meta muda de lugar a cada fase (calculada em setupLanes)
+    private float goalY;
 
     private static final float FAIXA_LARGURA = GRID_SIZE * 2f;
     private static final float CALCADA_ALTURA = 14f;
     private static final float TEMPO_FAIXA = 4f;
+    private static final int MAX_RUAS = 5;
+    private static final int PISTAS_MAX = 2;
 
     private static final String[] DICAS = {
         "Dica: use a faixa de pedestre!",
@@ -50,8 +59,8 @@ public class Game extends ScreenAdapter {
     private boolean sinalVermelho = false;
     private float sinalTimer = 0f;
 
-    private float faixaTimer = 0f;
-    private boolean jogadorNaFaixaAntes = false;
+    private float[] faixaTimers = new float[0];
+    private boolean[] jogadorNaFaixaAntes = new boolean[0];
     private boolean usouFaixa = false;
 
     private int pontos = 0;
@@ -64,14 +73,12 @@ public class Game extends ScreenAdapter {
     public Game() {
         shapeRender = new ShapeRenderer();
         batch = new SpriteBatch();
-        viewport = new FitViewport(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        viewport = new FitViewport(WORLD_LARGURA, WORLD_ALTURA);
         lanes = new FloatArray();
 
         float worldW = viewport.getWorldWidth();
         float worldH = viewport.getWorldHeight();
-        int totalRows = (int) (worldH / GRID_SIZE);
 
-        goalY = (totalRows - 1) * GRID_SIZE;
         player = new Player(worldW / 2f, 0f, GRID_SIZE, worldW, worldH);
         entidades = new Array<>();
 
@@ -97,7 +104,7 @@ public class Game extends ScreenAdapter {
         shapeRender.rect(0, goalY, viewport.getWorldWidth(), GRID_SIZE);
 
         desenharCalcadas();
-        desenharFaixaDePedestre();
+        desenharFaixasDePedestre();
 
         for (int i = 0; i < entidades.size; i++) entidades.get(i).render(shapeRender);
 
@@ -113,11 +120,12 @@ public class Game extends ScreenAdapter {
         batch.end();
 
         shapeRender.begin(ShapeRenderer.ShapeType.Filled);
-        desenharSinal();
+        desenharSinais();
         desenharBarraDeAviso();
         desenharPainelFimDeJogo();
         shapeRender.end();
 
+        Main.getInstance().batch.setProjectionMatrix(viewport.getCamera().combined);
         Main.getInstance().batch.begin();
         Main.getInstance().font.getData().setScale(1.0f);
         Main.getInstance().font.setColor(Color.WHITE);
@@ -126,7 +134,7 @@ public class Game extends ScreenAdapter {
         String aviso = getAviso();
 
         if (aviso != null) {
-            Main.getInstance().font.setColor(faixaTimer > 0f ? Color.YELLOW : Color.WHITE);
+            Main.getInstance().font.setColor(getFaixaTimerMax() > 0f ? Color.YELLOW : Color.WHITE);
             desenharTextoCentralizado(Main.getInstance().font, aviso, viewport.getWorldHeight() - 7f);
             Main.getInstance().font.setColor(Color.WHITE);
         }
@@ -164,7 +172,7 @@ public class Game extends ScreenAdapter {
         if (mensagemTimer > 0f) mensagemTimer -= delta;
 
         atualizarSinal(delta);
-        atualizarFaixa(delta);
+        atualizarFaixas(delta);
         atualizarVelocidadeDosCarros();
 
         IntStream.range(0, entidades.size).forEach(i -> entidades.get(i).update(delta));
@@ -205,8 +213,13 @@ public class Game extends ScreenAdapter {
             pontos += ganho;
             fase++;
 
-            if (usouFaixa) mostrarMensagem("Muito bem! Usou a faixa! +" + ganho + " pontos");
-            else mostrarMensagem("+" + ganho + " pontos - " + DICAS[MathUtils.random(DICAS.length - 1)]);
+            String extra;
+
+            if (fase <= MAX_RUAS) extra = "Nova rua e carros mais rapidos!";
+            else if (usouFaixa) extra = "Usou a faixa, muito bem!";
+            else extra = DICAS[MathUtils.random(DICAS.length - 1)];
+
+            mostrarMensagem("+" + ganho + " pontos - " + extra);
 
             respawn();
         }
@@ -220,22 +233,43 @@ public class Game extends ScreenAdapter {
 
         float worldH = viewport.getWorldHeight();
         int totalRows = (int) (worldH / GRID_SIZE);
-        int currentRow = 2;
         int maxRoadRow = totalRows - 3;
+        int linhasDisponiveis = maxRoadRow - 1;
 
-        while (currentRow <= maxRoadRow) {
-            int clusterSize = MathUtils.random(1, 3);
+        int ruasDesejadas = Math.min(fase, MAX_RUAS);
+        int[] pistasDaRua = new int[ruasDesejadas];
+        int totalDePistas = 0;
 
-            for (int j = 0; j < clusterSize && currentRow <= maxRoadRow; j++) {
-                lanes.add(currentRow * GRID_SIZE);
-                currentRow++;
+        for (int r = 0; r < ruasDesejadas; r++) {
+            pistasDaRua[r] = MathUtils.random(1, PISTAS_MAX);
+            totalDePistas += pistasDaRua[r];
+        }
+
+        int espacoLivre = linhasDisponiveis - totalDePistas;
+        int espaco = MathUtils.clamp(espacoLivre / ruasDesejadas, 1, 3);
+
+        int linhaAtual = 2;
+
+        for (int rua = 0; rua < ruasDesejadas; rua++) {
+            if (linhaAtual + pistasDaRua[rua] - 1 > maxRoadRow) break;
+
+            for (int p = 0; p < pistasDaRua[rua]; p++) {
+                lanes.add((linhaAtual + p) * GRID_SIZE);
             }
 
-            currentRow += MathUtils.random(1, 2);
+            linhaAtual += pistasDaRua[rua] + espaco;
         }
+
+        // A meta fica 3 linhas acima da ultima pista
+        float ultimaPista = lanes.size > 0 ? lanes.peek() : 0f;
+        float metaMaxima = (totalRows - 1) * GRID_SIZE; // nunca passa do topo da tela
+        goalY = Math.min(ultimaPista + GRID_SIZE * 3f, metaMaxima);
 
         laneSpeeds = new float[lanes.size];
         laneSpawnTimers = new float[lanes.size];
+
+        faixaTimers = new float[getTotalRuas()];
+        jogadorNaFaixaAntes = new boolean[getTotalRuas()];
 
         for (int i = 0; i < lanes.size; i++) {
             float direction = (i % 2 == 0) ? 1f : -1f;
@@ -270,8 +304,8 @@ public class Game extends ScreenAdapter {
     }
 
     private void respawn() {
-        faixaTimer = 0f;
-        jogadorNaFaixaAntes = false;
+        Arrays.fill(faixaTimers, 0f);
+        Arrays.fill(jogadorNaFaixaAntes, false);
         usouFaixa = false;
 
         if (player.getVidas() <= 0) {
@@ -291,6 +325,8 @@ public class Game extends ScreenAdapter {
 
         for (int row = 0; row < (int)(viewport.getWorldHeight() / GRID_SIZE); row++) {
             float y = row * GRID_SIZE;
+
+            if (y > goalY) continue; // nao decora acima da meta
 
             boolean isRoad = false;
 
@@ -312,16 +348,27 @@ public class Game extends ScreenAdapter {
     }
 
     private float getMultiplicadorDeVelocidade() {
-        return Math.min(1f + (fase - 1) * 0.12f, 2f);
+        return Math.min(1f + (fase - 1) * 0.3f, 4f);
     }
-
     private void mostrarMensagem(String texto) {
         mensagem = texto;
         mensagemTimer = 3.5f;
     }
 
+    private float getFaixaTimerMax() {
+        float maior = 0f;
+
+        for (int i = 0; i < faixaTimers.length; i++) {
+            if (faixaTimers[i] > maior) maior = faixaTimers[i];
+        }
+
+        return maior;
+    }
+
     private String getAviso() {
-        if (faixaTimer > 0f) return "Carros azuis parados: " + (int) Math.ceil(faixaTimer) + "s";
+        float faixaTimerMax = getFaixaTimerMax();
+
+        if (faixaTimerMax > 0f) return "Carros azuis parados: " + (int) Math.ceil(faixaTimerMax) + "s";
         if (mensagemTimer > 0f) return mensagem;
         return null;
     }
@@ -360,6 +407,14 @@ public class Game extends ScreenAdapter {
         return topo;
     }
 
+    private boolean temFaixa(int rua) {
+        return rua % 2 == 0;
+    }
+
+    private boolean temSinal(int rua) {
+        return rua % 2 == 1;
+    }
+
     private void atualizarSinal(float delta) {
         sinalTimer += delta;
 
@@ -371,15 +426,19 @@ public class Game extends ScreenAdapter {
         }
     }
 
-    private void atualizarFaixa(float delta) {
-        boolean naFaixa = jogadorNaFaixa();
+    private void atualizarFaixas(float delta) {
+        for (int rua = 0; rua < getTotalRuas(); rua++) {
+            if (!temFaixa(rua)) continue;
 
-        if (naFaixa && !jogadorNaFaixaAntes) faixaTimer = TEMPO_FAIXA;
-        if (jogadorAtravessandoNaFaixa()) usouFaixa = true;
+            boolean naFaixa = jogadorNaFaixa(rua);
 
-        jogadorNaFaixaAntes = naFaixa;
+            if (naFaixa && !jogadorNaFaixaAntes[rua]) faixaTimers[rua] = TEMPO_FAIXA;
+            if (jogadorAtravessandoNaFaixa(rua)) usouFaixa = true;
 
-        if (faixaTimer > 0f) faixaTimer -= delta;
+            jogadorNaFaixaAntes[rua] = naFaixa;
+
+            if (faixaTimers[rua] > 0f) faixaTimers[rua] -= delta;
+        }
     }
 
     private void atualizarVelocidadeDosCarros() {
@@ -393,11 +452,11 @@ public class Game extends ScreenAdapter {
             float velocidadeNormal = laneSpeeds[faixa];
             boolean deveParar = false;
 
-            if (rua == 0 && carrosAzuis.contains(car, true) && faixaTimer > 0f) {
+            if (temFaixa(rua) && carrosAzuis.contains(car, true) && faixaTimers[rua] > 0f) {
                 deveParar = estaChegandoNaFaixa(car, velocidadeNormal);
             }
 
-            if (rua == 1 && sinalVermelho) {
+            if (temSinal(rua) && sinalVermelho) {
                 deveParar = true;
             }
 
@@ -419,22 +478,18 @@ public class Game extends ScreenAdapter {
         return centroDoJogador >= faixaX && centroDoJogador <= faixaX + FAIXA_LARGURA;
     }
 
-    private boolean jogadorNaFaixa() {
-        if (getTotalRuas() < 1) return false;
-
-        float base = getRuaBaseY(0);
-        float topo = getRuaTopoY(0);
+    private boolean jogadorNaFaixa(int rua) {
+        float base = getRuaBaseY(rua);
+        float topo = getRuaTopoY(rua);
 
         boolean pertoDaRuaNoY = player.getY() >= base - GRID_SIZE - 1f && player.getY() <= topo - GRID_SIZE + 1f;
 
         return jogadorNaColunaDaFaixa() && pertoDaRuaNoY;
     }
 
-    private boolean jogadorAtravessandoNaFaixa() {
-        if (getTotalRuas() < 1) return false;
-
-        float base = getRuaBaseY(0);
-        float topo = getRuaTopoY(0);
+    private boolean jogadorAtravessandoNaFaixa(int rua) {
+        float base = getRuaBaseY(rua);
+        float topo = getRuaTopoY(rua);
 
         boolean naRuaNoY = player.getY() >= base - 1f && player.getY() <= topo - GRID_SIZE + 1f;
 
@@ -446,11 +501,11 @@ public class Game extends ScreenAdapter {
 
         if (velocidadeNormal > 0) {
             float frente = car.getX() + car.bounds.width;
-            return frente >= faixaX - 15f && frente <= faixaX;
+            return frente >= faixaX - 30f && frente <= faixaX;
         } else {
             float frente = car.getX();
             float fimDaFaixa = faixaX + FAIXA_LARGURA;
-            return frente <= fimDaFaixa + 15f && frente >= fimDaFaixa;
+            return frente <= fimDaFaixa + 30f && frente >= fimDaFaixa;
         }
     }
 
@@ -475,41 +530,46 @@ public class Game extends ScreenAdapter {
         }
     }
 
-    private void desenharFaixaDePedestre() {
-        if (getTotalRuas() < 1) return;
-
-        float base = getRuaBaseY(0);
-        float topo = getRuaTopoY(0);
+    private void desenharFaixasDePedestre() {
         float x = getFaixaX();
-        int listras = (int) ((topo - base) / 10f);
 
         shapeRender.setColor(0.93f, 0.93f, 0.93f, 1f);
 
-        for (int i = 0; i < listras; i++) {
-            shapeRender.rect(x, base + 2f + i * 10f, FAIXA_LARGURA, 6f);
+        for (int rua = 0; rua < getTotalRuas(); rua++) {
+            if (!temFaixa(rua)) continue;
+
+            float base = getRuaBaseY(rua);
+            float topo = getRuaTopoY(rua);
+            int listras = (int) ((topo - base) / 10f);
+
+            for (int i = 0; i < listras; i++) {
+                shapeRender.rect(x, base + 2f + i * 10f, FAIXA_LARGURA, 6f);
+            }
         }
     }
 
-    private void desenharSinal() {
-        if (getTotalRuas() < 2) return;
+    private void desenharSinais() {
+        for (int rua = 0; rua < getTotalRuas(); rua++) {
+            if (!temSinal(rua)) continue;
 
-        float x = 14f;
-        float y = getRuaTopoY(1) + 4f;
-        float cx = x + 11f;
+            float x = 14f;
+            float y = getRuaTopoY(rua) + 4f;
+            float cx = x + 11f;
 
-        shapeRender.setColor(0.08f, 0.08f, 0.08f, 1f);
-        shapeRender.rect(x, y, 22f, 38f);
+            shapeRender.setColor(0.08f, 0.08f, 0.08f, 1f);
+            shapeRender.rect(x, y, 22f, 38f);
 
-        if (sinalVermelho) shapeRender.setColor(1f, 0.15f, 0.15f, 1f);
-        else shapeRender.setColor(0.3f, 0.05f, 0.05f, 1f);
-        shapeRender.circle(cx, y + 30f, 5f);
+            if (sinalVermelho) shapeRender.setColor(1f, 0.15f, 0.15f, 1f);
+            else shapeRender.setColor(0.3f, 0.05f, 0.05f, 1f);
+            shapeRender.circle(cx, y + 30f, 5f);
 
-        shapeRender.setColor(0.3f, 0.25f, 0.05f, 1f);
-        shapeRender.circle(cx, y + 19f, 5f);
+            shapeRender.setColor(0.3f, 0.25f, 0.05f, 1f);
+            shapeRender.circle(cx, y + 19f, 5f);
 
-        if (sinalVermelho) shapeRender.setColor(0.05f, 0.3f, 0.08f, 1f);
-        else shapeRender.setColor(0.2f, 1f, 0.3f, 1f);
-        shapeRender.circle(cx, y + 8f, 5f);
+            if (sinalVermelho) shapeRender.setColor(0.05f, 0.3f, 0.08f, 1f);
+            else shapeRender.setColor(0.2f, 1f, 0.3f, 1f);
+            shapeRender.circle(cx, y + 8f, 5f);
+        }
     }
 
     private void desenharBarraDeAviso() {
