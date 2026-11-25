@@ -4,6 +4,8 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
@@ -34,11 +36,30 @@ public class Game extends ScreenAdapter {
 
     private static final float FAIXA_LARGURA = GRID_SIZE * 2f;
     private static final float CALCADA_ALTURA = 14f;
+    private static final float TEMPO_FAIXA = 4f;
+
+    private static final String[] DICAS = {
+        "Dica: use a faixa de pedestre!",
+        "Dica: os carros azuis param na faixa!",
+        "Dica: espere o sinal vermelho!",
+        "Dica: olhe antes de atravessar!"
+    };
 
     private final Array<Car> carrosAzuis = new Array<>();
 
     private boolean sinalVermelho = false;
     private float sinalTimer = 0f;
+
+    private float faixaTimer = 0f;
+    private boolean jogadorNaFaixaAntes = false;
+    private boolean usouFaixa = false;
+
+    private int pontos = 0;
+    private int fase = 1;
+    private boolean gameOver = false;
+
+    private String mensagem = "";
+    private float mensagemTimer = 0f;
 
     public Game() {
         shapeRender = new ShapeRenderer();
@@ -93,16 +114,36 @@ public class Game extends ScreenAdapter {
 
         shapeRender.begin(ShapeRenderer.ShapeType.Filled);
         desenharSinal();
+        desenharBarraDeAviso();
+        desenharPainelFimDeJogo();
         shapeRender.end();
 
         Main.getInstance().batch.begin();
         Main.getInstance().font.getData().setScale(1.0f);
         Main.getInstance().font.setColor(Color.WHITE);
-        Main.getInstance().font.draw(Main.getInstance().batch, "VIDAS: " + player.getVidas(), 10, 15);
+        Main.getInstance().font.draw(Main.getInstance().batch, "VIDAS: " + player.getVidas() + "   PONTOS: " + pontos + "   FASE: " + fase, 10, 15);
+
+        String aviso = getAviso();
+
+        if (aviso != null) {
+            Main.getInstance().font.setColor(faixaTimer > 0f ? Color.YELLOW : Color.WHITE);
+            desenharTextoCentralizado(Main.getInstance().font, aviso, viewport.getWorldHeight() - 7f);
+            Main.getInstance().font.setColor(Color.WHITE);
+        }
+
+        if (gameOver) desenharTextoFimDeJogo();
+
         Main.getInstance().batch.end();
     }
 
     private void handleInput() {
+        if (gameOver) {
+            if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) Main.getInstance().setScreen(new Game());
+            if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) Main.getInstance().setScreen(new TitleScreen());
+
+            return;
+        }
+
         boolean up = Gdx.input.isKeyJustPressed(Input.Keys.UP) || Gdx.input.isKeyJustPressed(Input.Keys.W);
         boolean down = Gdx.input.isKeyJustPressed(Input.Keys.DOWN) || Gdx.input.isKeyJustPressed(Input.Keys.S);
         boolean left = Gdx.input.isKeyJustPressed(Input.Keys.LEFT) || Gdx.input.isKeyJustPressed(Input.Keys.A);
@@ -118,7 +159,12 @@ public class Game extends ScreenAdapter {
     }
 
     private void update(float delta) {
+        if (gameOver) return;
+
+        if (mensagemTimer > 0f) mensagemTimer -= delta;
+
         atualizarSinal(delta);
+        atualizarFaixa(delta);
         atualizarVelocidadeDosCarros();
 
         IntStream.range(0, entidades.size).forEach(i -> entidades.get(i).update(delta));
@@ -139,6 +185,7 @@ public class Game extends ScreenAdapter {
                 if (car.isCollidingWith(player)) {
                     Gdx.app.log("EVENT", "atropelado. Vidas restantes: " + (player.getVidas() - 1));
                     player.perderVida();
+                    mostrarMensagem("Ops! Olhe os carros antes de atravessar!");
                     respawn();
 
                     return;
@@ -153,6 +200,14 @@ public class Game extends ScreenAdapter {
 
         if (player.getY() >= goalY) {
             Gdx.app.log("EVENT", "nice");
+
+            int ganho = usouFaixa ? 15 : 10;
+            pontos += ganho;
+            fase++;
+
+            if (usouFaixa) mostrarMensagem("Muito bem! Usou a faixa! +" + ganho + " pontos");
+            else mostrarMensagem("+" + ganho + " pontos - " + DICAS[MathUtils.random(DICAS.length - 1)]);
+
             respawn();
         }
     }
@@ -186,7 +241,7 @@ public class Game extends ScreenAdapter {
             float direction = (i % 2 == 0) ? 1f : -1f;
             int ongoing = MathUtils.random(1, 3);
 
-            laneSpeeds[i] = direction * MathUtils.random(120f, 260f);
+            laneSpeeds[i] = direction * MathUtils.random(120f, 260f) * getMultiplicadorDeVelocidade();
             laneSpawnTimers[i] = MathUtils.random(0.2f, 1.5f);
 
             for (int c = 0; c < ongoing; c++) spawnCar(i, MathUtils.random(0f, viewport.getWorldWidth()));
@@ -215,7 +270,14 @@ public class Game extends ScreenAdapter {
     }
 
     private void respawn() {
-        if (player.getVidas() <= 0) Main.getInstance().setScreen(new TitleScreen());
+        faixaTimer = 0f;
+        jogadorNaFaixaAntes = false;
+        usouFaixa = false;
+
+        if (player.getVidas() <= 0) {
+            gameOver = true;
+            return;
+        }
 
         player.reset(viewport.getWorldWidth() / 2f, 0f);
         setupLanes();
@@ -247,6 +309,21 @@ public class Game extends ScreenAdapter {
                 }
             }
         }
+    }
+
+    private float getMultiplicadorDeVelocidade() {
+        return Math.min(1f + (fase - 1) * 0.12f, 2f);
+    }
+
+    private void mostrarMensagem(String texto) {
+        mensagem = texto;
+        mensagemTimer = 3.5f;
+    }
+
+    private String getAviso() {
+        if (faixaTimer > 0f) return "Carros azuis parados: " + (int) Math.ceil(faixaTimer) + "s";
+        if (mensagemTimer > 0f) return mensagem;
+        return null;
     }
 
     private int getRuaDaFaixa(int faixa) {
@@ -294,6 +371,17 @@ public class Game extends ScreenAdapter {
         }
     }
 
+    private void atualizarFaixa(float delta) {
+        boolean naFaixa = jogadorNaFaixa();
+
+        if (naFaixa && !jogadorNaFaixaAntes) faixaTimer = TEMPO_FAIXA;
+        if (jogadorAtravessandoNaFaixa()) usouFaixa = true;
+
+        jogadorNaFaixaAntes = naFaixa;
+
+        if (faixaTimer > 0f) faixaTimer -= delta;
+    }
+
     private void atualizarVelocidadeDosCarros() {
         for (int i = 0; i < entidades.size; i++) {
             if (!(entidades.get(i) instanceof Car car)) continue;
@@ -305,7 +393,7 @@ public class Game extends ScreenAdapter {
             float velocidadeNormal = laneSpeeds[faixa];
             boolean deveParar = false;
 
-            if (rua == 0 && carrosAzuis.contains(car, true) && jogadorNaFaixa()) {
+            if (rua == 0 && carrosAzuis.contains(car, true) && faixaTimer > 0f) {
                 deveParar = estaChegandoNaFaixa(car, velocidadeNormal);
             }
 
@@ -324,18 +412,33 @@ public class Game extends ScreenAdapter {
         return -1;
     }
 
+    private boolean jogadorNaColunaDaFaixa() {
+        float centroDoJogador = player.getX() + GRID_SIZE / 2f;
+        float faixaX = getFaixaX();
+
+        return centroDoJogador >= faixaX && centroDoJogador <= faixaX + FAIXA_LARGURA;
+    }
+
     private boolean jogadorNaFaixa() {
         if (getTotalRuas() < 1) return false;
 
         float base = getRuaBaseY(0);
         float topo = getRuaTopoY(0);
-        float centroDoJogador = player.getX() + GRID_SIZE / 2f;
-        float faixaX = getFaixaX();
 
-        boolean dentroDaFaixaNoX = centroDoJogador >= faixaX && centroDoJogador <= faixaX + FAIXA_LARGURA;
         boolean pertoDaRuaNoY = player.getY() >= base - GRID_SIZE - 1f && player.getY() <= topo - GRID_SIZE + 1f;
 
-        return dentroDaFaixaNoX && pertoDaRuaNoY;
+        return jogadorNaColunaDaFaixa() && pertoDaRuaNoY;
+    }
+
+    private boolean jogadorAtravessandoNaFaixa() {
+        if (getTotalRuas() < 1) return false;
+
+        float base = getRuaBaseY(0);
+        float topo = getRuaTopoY(0);
+
+        boolean naRuaNoY = player.getY() >= base - 1f && player.getY() <= topo - GRID_SIZE + 1f;
+
+        return jogadorNaColunaDaFaixa() && naRuaNoY;
     }
 
     private boolean estaChegandoNaFaixa(Car car, float velocidadeNormal) {
@@ -407,6 +510,44 @@ public class Game extends ScreenAdapter {
         if (sinalVermelho) shapeRender.setColor(0.05f, 0.3f, 0.08f, 1f);
         else shapeRender.setColor(0.2f, 1f, 0.3f, 1f);
         shapeRender.circle(cx, y + 8f, 5f);
+    }
+
+    private void desenharBarraDeAviso() {
+        if (getAviso() == null) return;
+
+        shapeRender.setColor(0.05f, 0.05f, 0.1f, 1f);
+        shapeRender.rect(0, viewport.getWorldHeight() - 28f, viewport.getWorldWidth(), 28f);
+    }
+
+    private void desenharPainelFimDeJogo() {
+        if (!gameOver) return;
+
+        float largura = Math.min(viewport.getWorldWidth() - 40f, 520f);
+        float cx = viewport.getWorldWidth() / 2f;
+        float cy = viewport.getWorldHeight() / 2f;
+
+        shapeRender.setColor(0.05f, 0.05f, 0.1f, 1f);
+        shapeRender.rect(cx - largura / 2f, cy - 90f, largura, 190f);
+    }
+
+    private void desenharTextoFimDeJogo() {
+        float cy = viewport.getWorldHeight() / 2f;
+
+        Main.getInstance().fonteGrande.setColor(1f, 0.3f, 0.3f, 1f);
+        desenharTextoCentralizado(Main.getInstance().fonteGrande, "FIM DE JOGO", cy + 80f);
+
+        Main.getInstance().fonteMedia.setColor(Color.WHITE);
+        desenharTextoCentralizado(Main.getInstance().fonteMedia, "Pontos: " + pontos + "   Fase: " + fase, cy + 10f);
+
+        Main.getInstance().font.setColor(Color.YELLOW);
+        desenharTextoCentralizado(Main.getInstance().font, "ENTER: jogar de novo   ESC: menu", cy - 45f);
+        Main.getInstance().font.setColor(Color.WHITE);
+    }
+
+    private void desenharTextoCentralizado(BitmapFont fonte, String texto, float y) {
+        GlyphLayout layout = new GlyphLayout(fonte, texto);
+
+        fonte.draw(Main.getInstance().batch, layout, (viewport.getWorldWidth() - layout.width) / 2f, y);
     }
 
     @Override
