@@ -41,6 +41,8 @@ public class Game extends ScreenAdapter {
     private static final int LAGO = 2;
     private static final int FLOR = 3;
     private static final int POSTE = 4;
+    private static final int BANCO = 5;
+    private static final int ARBUSTO = 6;
 
     private static final Color[] CORES_FLOR = {
         Color.RED, Color.PINK, Color.WHITE, Color.ORANGE, Color.PURPLE
@@ -135,14 +137,20 @@ public class Game extends ScreenAdapter {
         viewport.apply();
         shapeRender.setProjectionMatrix(viewport.getCamera().combined);
         shapeRender.begin(ShapeRenderer.ShapeType.Filled);
+
+        desenharGramado();
+
         shapeRender.setColor(0.22f, 0.22f, 0.25f, 1f);
         for (int i = 0; i < lanes.size; i++) shapeRender.rect(0, lanes.get(i), viewport.getWorldWidth(), GRID_SIZE);
 
+        desenharMarcacoesDasRuas();
         desenharMeta();
         desenharEnfeites();
+        desenharPainelDoHud();
 
         desenharCalcadas();
         desenharFaixasDePedestre();
+        desenharSombrasDosCarros();
 
         for (int i = 0; i < entidades.size; i++) entidades.get(i).render(shapeRender);
 
@@ -396,17 +404,81 @@ public class Game extends ScreenAdapter {
                 } else if (podeGrande && sorte < 0.06f && col < colunas - 1) {
                     enfeites.add(new Enfeite(LAGO, x, y, 0));
                     col++;
-                } else if (podeGrande && sorte < 0.13f) {
+                } else if (podeGrande && sorte < 0.12f) {
                     enfeites.add(new Enfeite(ARVORE, x, y, 0));
-                } else if (podeGrande && sorte < 0.15f) {
+                } else if (podeGrande && sorte < 0.14f) {
                     enfeites.add(new Enfeite(POSTE, x, y, 0));
-                } else if (sorte < 0.30f) {
+                } else if (podeGrande && sorte < 0.16f) {
+                    enfeites.add(new Enfeite(BANCO, x, y, 0));
+                } else if (sorte < 0.22f) {
+                    enfeites.add(new Enfeite(ARBUSTO, x, y, 0));
+                } else if (sorte < 0.34f) {
                     enfeites.add(new Enfeite(FLOR, x, y, MathUtils.random(0, CORES_FLOR.length - 1)));
                 } else if (MathUtils.randomBoolean(0.25f)) {
                     decorations.add(new Decoration(x, y, GRID_SIZE, GRID_SIZE));
                 }
             }
         }
+    }
+
+    private void desenharGramado() {
+        int colunas = (int) (viewport.getWorldWidth() / GRID_SIZE) + 1;
+        int linhas = (int) (viewport.getWorldHeight() / GRID_SIZE) + 1;
+
+        shapeRender.setColor(0.16f, 0.51f, 0.20f, 1f);
+
+        for (int row = 0; row < linhas; row++) {
+            for (int col = 0; col < colunas; col++) {
+                if ((row + col) % 2 == 0) shapeRender.rect(col * GRID_SIZE, row * GRID_SIZE, GRID_SIZE, GRID_SIZE);
+            }
+        }
+    }
+
+    private void desenharMarcacoesDasRuas() {
+        float largura = viewport.getWorldWidth();
+
+        for (int rua = 0; rua < getTotalRuas(); rua++) {
+            float base = getRuaBaseY(rua);
+            float topo = getRuaTopoY(rua);
+            int pistas = Math.round((topo - base) / GRID_SIZE);
+
+            shapeRender.setColor(0.85f, 0.85f, 0.85f, 1f);
+            shapeRender.rect(0, base + 3f, largura, 2f);
+            shapeRender.rect(0, topo - 5f, largura, 2f);
+
+            if (pistas == 1) {
+                for (float x = 0; x < largura; x += 60f) {
+                    shapeRender.rect(x, base + GRID_SIZE / 2f - 1f, 30f, 3f);
+                }
+            } else {
+                shapeRender.setColor(0.95f, 0.78f, 0.15f, 1f);
+
+                for (int p = 1; p < pistas; p++) {
+                    float y = base + p * GRID_SIZE;
+
+                    shapeRender.rect(0, y - 3f, largura, 2f);
+                    shapeRender.rect(0, y + 1f, largura, 2f);
+                }
+            }
+        }
+    }
+
+    private void desenharSombrasDosCarros() {
+        shapeRender.setColor(0.10f, 0.10f, 0.13f, 1f);
+
+        for (int i = 0; i < entidades.size; i++) {
+            if (entidades.get(i) instanceof Car car) {
+                shapeRender.ellipse(car.getX() + 4f, car.getY() - 1f, car.bounds.width - 8f, 9f);
+            }
+        }
+    }
+
+    private void desenharPainelDoHud() {
+        shapeRender.setColor(0.05f, 0.05f, 0.1f, 1f);
+        shapeRender.rect(0, 0, 300f, 22f);
+
+        shapeRender.setColor(0.95f, 0.75f, 0.15f, 1f);
+        shapeRender.rect(0, 22f, 300f, 2f);
     }
 
     private void desenharMeta() {
@@ -421,6 +493,20 @@ public class Game extends ScreenAdapter {
                 shapeRender.rect(i * quad, goalY + j * quad, quad, quad);
             }
         }
+
+        desenharBandeira(10f, goalY);
+        desenharBandeira(viewport.getWorldWidth() - 20f, goalY);
+    }
+
+    private void desenharBandeira(float x, float y) {
+        shapeRender.setColor(0.85f, 0.85f, 0.88f, 1f);
+        shapeRender.rect(x, y, 4f, 48f);
+
+        shapeRender.setColor(0.90f, 0.15f, 0.15f, 1f);
+        shapeRender.triangle(x + 4f, y + 48f, x + 4f, y + 34f, x + 24f, y + 41f);
+
+        shapeRender.setColor(1f, 0.85f, 0.1f, 1f);
+        shapeRender.circle(x + 2f, y + 49f, 3f);
     }
 
     private void desenharEnfeites() {
@@ -433,6 +519,8 @@ public class Game extends ScreenAdapter {
                 case LAGO -> desenharLago(e.x, e.y);
                 case FLOR -> desenharFlores(e.x, e.y, e.cor);
                 case POSTE -> desenharPoste(e.x, e.y);
+                case BANCO -> desenharBanco(e.x, e.y);
+                case ARBUSTO -> desenharArbusto(e.x, e.y);
             }
         }
     }
@@ -462,15 +550,27 @@ public class Game extends ScreenAdapter {
 
         shapeRender.rect(x + 4f, y + 2f, largura, 28f);
 
+        shapeRender.setColor(0.55f, 0.25f, 0.20f, 1f);
+        shapeRender.rect(x + GRID_SIZE * 2f - 30f, y + 32f, 8f, 14f);
+
         shapeRender.setColor(0.65f, 0.20f, 0.15f, 1f);
         shapeRender.triangle(x, y + 30f, x + GRID_SIZE * 2f, y + 30f, x + GRID_SIZE, y + 48f);
 
         shapeRender.setColor(0.40f, 0.25f, 0.12f, 1f);
         shapeRender.rect(x + GRID_SIZE - 6f, y + 2f, 12f, 18f);
 
+        shapeRender.setColor(1f, 0.85f, 0.1f, 1f);
+        shapeRender.circle(x + GRID_SIZE + 3f, y + 10f, 1.5f);
+
         shapeRender.setColor(0.55f, 0.80f, 0.95f, 1f);
         shapeRender.rect(x + 14f, y + 12f, 14f, 12f);
         shapeRender.rect(x + GRID_SIZE * 2f - 28f, y + 12f, 14f, 12f);
+
+        shapeRender.setColor(1f, 1f, 1f, 1f);
+        shapeRender.rect(x + 20.5f, y + 12f, 1.5f, 12f);
+        shapeRender.rect(x + 14f, y + 17.5f, 14f, 1.5f);
+        shapeRender.rect(x + GRID_SIZE * 2f - 21.5f, y + 12f, 1.5f, 12f);
+        shapeRender.rect(x + GRID_SIZE * 2f - 28f, y + 17.5f, 14f, 1.5f);
     }
 
     private void desenharLago(float x, float y) {
@@ -484,6 +584,13 @@ public class Game extends ScreenAdapter {
 
         shapeRender.setColor(0.55f, 0.80f, 0.95f, 1f);
         shapeRender.ellipse(x + 22f, y + 26f, 28f, 8f);
+
+        shapeRender.setColor(0.15f, 0.55f, 0.25f, 1f);
+        shapeRender.ellipse(x + 14f, y + 20f, 12f, 6f);
+        shapeRender.ellipse(x + 62f, y + 28f, 12f, 6f);
+
+        shapeRender.setColor(1f, 0.6f, 0.75f, 1f);
+        shapeRender.circle(x + 68f, y + 31f, 2f);
     }
 
     private void desenharFlores(float x, float y, int cor) {
@@ -513,6 +620,40 @@ public class Game extends ScreenAdapter {
 
         shapeRender.setColor(1f, 0.92f, 0.45f, 1f);
         shapeRender.circle(x + 25f, y + 41f, 6f);
+    }
+
+    private void desenharBanco(float x, float y) {
+        shapeRender.setColor(0.12f, 0.42f, 0.17f, 1f);
+        shapeRender.ellipse(x + 6f, y + 6f, 38f, 8f);
+
+        shapeRender.setColor(0.25f, 0.25f, 0.28f, 1f);
+        shapeRender.rect(x + 10f, y + 8f, 3f, 8f);
+        shapeRender.rect(x + 37f, y + 8f, 3f, 8f);
+        shapeRender.rect(x + 10f, y + 22f, 3f, 8f);
+        shapeRender.rect(x + 37f, y + 22f, 3f, 8f);
+
+        shapeRender.setColor(0.55f, 0.35f, 0.16f, 1f);
+        shapeRender.rect(x + 7f, y + 16f, 36f, 6f);
+        shapeRender.rect(x + 7f, y + 26f, 36f, 5f);
+    }
+
+    private void desenharArbusto(float x, float y) {
+        shapeRender.setColor(0.12f, 0.42f, 0.17f, 1f);
+        shapeRender.ellipse(x + 6f, y + 4f, 38f, 9f);
+
+        shapeRender.setColor(0.10f, 0.38f, 0.14f, 1f);
+        shapeRender.circle(x + 16f, y + 18f, 11f);
+        shapeRender.circle(x + 34f, y + 18f, 11f);
+        shapeRender.circle(x + 25f, y + 24f, 13f);
+
+        shapeRender.setColor(0.22f, 0.58f, 0.24f, 1f);
+        shapeRender.circle(x + 21f, y + 27f, 5f);
+        shapeRender.circle(x + 35f, y + 21f, 4f);
+
+        shapeRender.setColor(0.85f, 0.15f, 0.20f, 1f);
+        shapeRender.circle(x + 14f, y + 16f, 2f);
+        shapeRender.circle(x + 30f, y + 14f, 2f);
+        shapeRender.circle(x + 38f, y + 22f, 2f);
     }
 
     private float getMultiplicadorDeVelocidade() {
@@ -693,6 +834,13 @@ public class Game extends ScreenAdapter {
             shapeRender.rect(0, base - CALCADA_ALTURA, largura, CALCADA_ALTURA);
             shapeRender.rect(0, topo, largura, CALCADA_ALTURA);
 
+            shapeRender.setColor(0.68f, 0.68f, 0.65f, 1f);
+
+            for (float x = 0; x < largura; x += 25f) {
+                shapeRender.rect(x, base - CALCADA_ALTURA, 1f, CALCADA_ALTURA - 2f);
+                shapeRender.rect(x, topo + 2f, 1f, CALCADA_ALTURA - 2f);
+            }
+
             shapeRender.setColor(0.55f, 0.55f, 0.55f, 1f);
             shapeRender.rect(0, base - 2f, largura, 2f);
             shapeRender.rect(0, topo, largura, 2f);
@@ -725,18 +873,32 @@ public class Game extends ScreenAdapter {
             float y = getRuaTopoY(rua) + 4f;
             float cx = x + 11f;
 
+            shapeRender.setColor(0.35f, 0.35f, 0.38f, 1f);
+            shapeRender.rect(x + 9f, y - 4f, 4f, 6f);
+            shapeRender.rect(x - 2f, y - 2f, 26f, 42f);
+
             shapeRender.setColor(0.08f, 0.08f, 0.08f, 1f);
             shapeRender.rect(x, y, 22f, 38f);
 
-            if (sinalVermelho) shapeRender.setColor(1f, 0.15f, 0.15f, 1f);
-            else shapeRender.setColor(0.3f, 0.05f, 0.05f, 1f);
+            if (sinalVermelho) {
+                shapeRender.setColor(1f, 0.55f, 0.55f, 1f);
+                shapeRender.circle(cx, y + 30f, 7f);
+                shapeRender.setColor(1f, 0.15f, 0.15f, 1f);
+            } else {
+                shapeRender.setColor(0.3f, 0.05f, 0.05f, 1f);
+            }
             shapeRender.circle(cx, y + 30f, 5f);
 
             shapeRender.setColor(0.3f, 0.25f, 0.05f, 1f);
             shapeRender.circle(cx, y + 19f, 5f);
 
-            if (sinalVermelho) shapeRender.setColor(0.05f, 0.3f, 0.08f, 1f);
-            else shapeRender.setColor(0.2f, 1f, 0.3f, 1f);
+            if (!sinalVermelho) {
+                shapeRender.setColor(0.6f, 1f, 0.65f, 1f);
+                shapeRender.circle(cx, y + 8f, 7f);
+                shapeRender.setColor(0.2f, 1f, 0.3f, 1f);
+            } else {
+                shapeRender.setColor(0.05f, 0.3f, 0.08f, 1f);
+            }
             shapeRender.circle(cx, y + 8f, 5f);
         }
     }
