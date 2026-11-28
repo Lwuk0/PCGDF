@@ -21,7 +21,6 @@ import dev.pcgdf.entities.Player;
 import dev.pcgdf.fase.Decoration;
 
 import java.util.Arrays;
-import java.util.stream.IntStream;
 
 public class Game extends ScreenAdapter {
     private static final float GRID_SIZE = 50f;
@@ -37,15 +36,36 @@ public class Game extends ScreenAdapter {
     private final Array<Decoration> decorations = new Array<>();
 
     private static final int ARVORE = 0;
-    private static final int CASA = 1;
-    private static final int LAGO = 2;
-    private static final int FLOR = 3;
-    private static final int POSTE = 4;
-    private static final int BANCO = 5;
-    private static final int ARBUSTO = 6;
+    private static final int LAGO = 1;
+    private static final int FLOR = 2;
+    private static final int ARBUSTO = 3;
+    private static final int TUFO = 4;
+    private static final int PEDRA = 5;
+    private static final int COGUMELO = 6;
+
+    private static final int PINHEIRO = 3;
 
     private static final Color[] CORES_FLOR = {
         Color.RED, Color.PINK, Color.WHITE, Color.ORANGE, Color.PURPLE
+    };
+
+    private static final Color[] COPA_ESCURA = {
+        new Color(0.10f, 0.42f, 0.17f, 1f),
+        new Color(0.08f, 0.45f, 0.35f, 1f),
+        new Color(0.80f, 0.40f, 0.10f, 1f)
+    };
+
+    private static final Color[] COPA_CLARA = {
+        new Color(0.30f, 0.68f, 0.28f, 1f),
+        new Color(0.30f, 0.72f, 0.55f, 1f),
+        new Color(0.95f, 0.70f, 0.20f, 1f)
+    };
+
+    private static final Color[] CORES_BANDEIRINHA = {
+        new Color(0.90f, 0.15f, 0.15f, 1f),
+        new Color(0.98f, 0.82f, 0.15f, 1f),
+        new Color(0.25f, 0.55f, 0.90f, 1f),
+        new Color(1f, 1f, 1f, 1f)
     };
 
     private static class Enfeite {
@@ -65,16 +85,21 @@ public class Game extends ScreenAdapter {
 
     private Music musica;
     private final FloatArray lanes;
+    private final FloatArray lanesSentido;
     private float[] laneSpeeds;
     private float[] laneSpawnTimers;
 
     private float goalY;
 
     private static final float FAIXA_LARGURA = GRID_SIZE * 2f;
+    private static final float FAIXA_X_DO_SEMAFORO = 200f;
+    private static final float MARGEM_FAIXA = 6f;
+    private static final float DISTANCIA_FILA = 24f;
+    private static final float TEMPO_SINAL_VERMELHO = 3f;
     private static final float CALCADA_ALTURA = 14f;
     private static final float TEMPO_FAIXA = 4f;
     private static final int MAX_RUAS = 5;
-    private static final int PISTAS_MAX = 2;
+    private static final int PISTAS_MAX = 4;
 
     private static final String[] DICAS = {
         "Dica: use a faixa de pedestre!",
@@ -104,6 +129,7 @@ public class Game extends ScreenAdapter {
         batch = new SpriteBatch();
         viewport = new FitViewport(WORLD_LARGURA, WORLD_ALTURA);
         lanes = new FloatArray();
+        lanesSentido = new FloatArray();
 
         float worldW = viewport.getWorldWidth();
         float worldH = viewport.getWorldHeight();
@@ -133,16 +159,13 @@ public class Game extends ScreenAdapter {
         handleInput();
         update(delta);
 
-        ScreenUtils.clear(.18f, .55f, .22f, 1f);
+        ScreenUtils.clear(0.33f, 0.68f, 0.32f, 1f);
         viewport.apply();
         shapeRender.setProjectionMatrix(viewport.getCamera().combined);
         shapeRender.begin(ShapeRenderer.ShapeType.Filled);
 
         desenharGramado();
-
-        shapeRender.setColor(0.22f, 0.22f, 0.25f, 1f);
-        for (int i = 0; i < lanes.size; i++) shapeRender.rect(0, lanes.get(i), viewport.getWorldWidth(), GRID_SIZE);
-
+        desenharRuas();
         desenharMarcacoesDasRuas();
         desenharMeta();
         desenharEnfeites();
@@ -226,7 +249,7 @@ public class Game extends ScreenAdapter {
         atualizarFaixas(delta);
         atualizarVelocidadeDosCarros();
 
-        IntStream.range(0, entidades.size).forEach(i -> entidades.get(i).update(delta));
+        for (int i = 0; i < entidades.size; i++) entidades.get(i).update(delta);
 
         for (int i = 0; i < lanes.size; i++) {
             laneSpawnTimers[i] -= delta;
@@ -277,38 +300,40 @@ public class Game extends ScreenAdapter {
     }
 
     private void setupLanes() {
-        IntStream.iterate(entidades.size - 1, i -> i >= 0, i -> i - 1).filter(i -> entidades.get(i) instanceof Car).forEach(entidades::removeIndex);
-        lanes.clear();
+        for (int i = entidades.size - 1; i >= 0; i--) {
+            if (entidades.get(i) instanceof Car) entidades.removeIndex(i);
+        }
 
+        lanes.clear();
+        lanesSentido.clear();
         carrosAzuis.clear();
 
         float worldH = viewport.getWorldHeight();
         int totalRows = (int) (worldH / GRID_SIZE);
         int maxRoadRow = totalRows - 3;
-        int linhasDisponiveis = maxRoadRow - 1;
-
         int ruasDesejadas = Math.min(fase, MAX_RUAS);
-        int[] pistasDaRua = new int[ruasDesejadas];
-        int totalDePistas = 0;
-
-        for (int r = 0; r < ruasDesejadas; r++) {
-            pistasDaRua[r] = MathUtils.random(1, PISTAS_MAX);
-            totalDePistas += pistasDaRua[r];
-        }
-
-        int espacoLivre = linhasDisponiveis - totalDePistas;
-        int espaco = MathUtils.clamp(espacoLivre / ruasDesejadas, 1, 3);
-
         int linhaAtual = 2;
 
         for (int rua = 0; rua < ruasDesejadas; rua++) {
-            if (linhaAtual + pistasDaRua[rua] - 1 > maxRoadRow) break;
+            int ruasRestantes = ruasDesejadas - rua - 1;
+            int linhasLivres = maxRoadRow - linhaAtual + 1 - ruasRestantes * 2;
+            int maxPistas = Math.min(PISTAS_MAX, linhasLivres);
 
-            for (int p = 0; p < pistasDaRua[rua]; p++) {
+            if (maxPistas < 1) break;
+
+            int pistas = MathUtils.random(1, maxPistas);
+            float sentidoDaRua = (rua % 2 == 0) ? 1f : -1f;
+
+            for (int p = 0; p < pistas; p++) {
+                float sentido = sentidoDaRua;
+
+                if (pistas > 1 && p * 2 < pistas) sentido = -sentidoDaRua;
+
                 lanes.add((linhaAtual + p) * GRID_SIZE);
+                lanesSentido.add(sentido);
             }
 
-            linhaAtual += pistasDaRua[rua] + espaco;
+            linhaAtual += pistas + 1;
         }
 
         float ultimaPista = lanes.size > 0 ? lanes.peek() : 0f;
@@ -322,10 +347,9 @@ public class Game extends ScreenAdapter {
         jogadorNaFaixaAntes = new boolean[getTotalRuas()];
 
         for (int i = 0; i < lanes.size; i++) {
-            float direction = (i % 2 == 0) ? 1f : -1f;
             int ongoing = MathUtils.random(1, 3);
 
-            laneSpeeds[i] = direction * MathUtils.random(120f, 260f) * getMultiplicadorDeVelocidade();
+            laneSpeeds[i] = lanesSentido.get(i) * MathUtils.random(120f, 260f) * getMultiplicadorDeVelocidade();
             laneSpawnTimers[i] = MathUtils.random(0.2f, 1.5f);
 
             for (int c = 0; c < ongoing; c++) spawnCar(i, MathUtils.random(0f, viewport.getWorldWidth()));
@@ -348,7 +372,7 @@ public class Game extends ScreenAdapter {
     }
 
     private void spawnCar(int idx) {
-        float startX = (laneSpeeds[idx] > 0) ? - (GRID_SIZE - 10f) * 2f : viewport.getWorldWidth();
+        float startX = (laneSpeeds[idx] > 0) ? -(GRID_SIZE - 10f) * 2f : viewport.getWorldWidth();
 
         spawnCar(idx, startX);
     }
@@ -369,6 +393,14 @@ public class Game extends ScreenAdapter {
         setupDecorations();
     }
 
+    private boolean ehLinhaDeRua(float y) {
+        for (int i = 0; i < lanes.size; i++) {
+            if (lanes.get(i) == y) return true;
+        }
+
+        return false;
+    }
+
     private void setupDecorations() {
         decorations.clear();
         enfeites.clear();
@@ -379,18 +411,9 @@ public class Game extends ScreenAdapter {
         for (int row = 0; row < linhas; row++) {
             float y = row * GRID_SIZE;
 
-            if (y >= goalY) continue;
-
-            boolean isRoad = false;
-
-            for (int i = 0; i < lanes.size; i++) {
-                if (lanes.get(i) == y) {
-                    isRoad = true;
-                    break;
-                }
-            }
-
-            if (isRoad) continue;
+            if (ehLinhaDeRua(y)) continue;
+            if (ehLinhaDeRua(y + GRID_SIZE) || ehLinhaDeRua(y - GRID_SIZE)) continue;
+            if (y >= goalY - GRID_SIZE && y < goalY + GRID_SIZE) continue;
 
             boolean podeGrande = row >= 1;
 
@@ -398,23 +421,22 @@ public class Game extends ScreenAdapter {
                 float x = col * GRID_SIZE;
                 float sorte = MathUtils.random();
 
-                if (podeGrande && sorte < 0.04f && col < colunas - 1) {
-                    enfeites.add(new Enfeite(CASA, x, y, MathUtils.random(0, 2)));
-                    col++;
-                } else if (podeGrande && sorte < 0.06f && col < colunas - 1) {
+                if (podeGrande && sorte < 0.025f && col < colunas - 1) {
                     enfeites.add(new Enfeite(LAGO, x, y, 0));
                     col++;
-                } else if (podeGrande && sorte < 0.12f) {
-                    enfeites.add(new Enfeite(ARVORE, x, y, 0));
-                } else if (podeGrande && sorte < 0.14f) {
-                    enfeites.add(new Enfeite(POSTE, x, y, 0));
-                } else if (podeGrande && sorte < 0.16f) {
-                    enfeites.add(new Enfeite(BANCO, x, y, 0));
-                } else if (sorte < 0.22f) {
+                } else if (podeGrande && sorte < 0.075f) {
+                    enfeites.add(new Enfeite(ARVORE, x, y, MathUtils.random(0, 3)));
+                } else if (sorte < 0.115f) {
                     enfeites.add(new Enfeite(ARBUSTO, x, y, 0));
-                } else if (sorte < 0.34f) {
+                } else if (sorte < 0.175f) {
                     enfeites.add(new Enfeite(FLOR, x, y, MathUtils.random(0, CORES_FLOR.length - 1)));
-                } else if (MathUtils.randomBoolean(0.25f)) {
+                } else if (sorte < 0.205f) {
+                    enfeites.add(new Enfeite(PEDRA, x, y, 0));
+                } else if (sorte < 0.22f) {
+                    enfeites.add(new Enfeite(COGUMELO, x, y, 0));
+                } else if (sorte < 0.34f) {
+                    enfeites.add(new Enfeite(TUFO, x, y, 0));
+                } else if (MathUtils.randomBoolean(0.05f)) {
                     decorations.add(new Decoration(x, y, GRID_SIZE, GRID_SIZE));
                 }
             }
@@ -425,12 +447,21 @@ public class Game extends ScreenAdapter {
         int colunas = (int) (viewport.getWorldWidth() / GRID_SIZE) + 1;
         int linhas = (int) (viewport.getWorldHeight() / GRID_SIZE) + 1;
 
-        shapeRender.setColor(0.16f, 0.51f, 0.20f, 1f);
+        shapeRender.setColor(0.30f, 0.64f, 0.29f, 1f);
 
         for (int row = 0; row < linhas; row++) {
             for (int col = 0; col < colunas; col++) {
                 if ((row + col) % 2 == 0) shapeRender.rect(col * GRID_SIZE, row * GRID_SIZE, GRID_SIZE, GRID_SIZE);
             }
+        }
+    }
+
+    private void desenharRuas() {
+        for (int i = 0; i < lanes.size; i++) {
+            if (i % 2 == 0) shapeRender.setColor(0.22f, 0.22f, 0.25f, 1f);
+            else shapeRender.setColor(0.25f, 0.25f, 0.28f, 1f);
+
+            shapeRender.rect(0, lanes.get(i), viewport.getWorldWidth(), GRID_SIZE);
         }
     }
 
@@ -450,14 +481,23 @@ public class Game extends ScreenAdapter {
                 for (float x = 0; x < largura; x += 60f) {
                     shapeRender.rect(x, base + GRID_SIZE / 2f - 1f, 30f, 3f);
                 }
-            } else {
+            }
+        }
+
+        for (int i = 1; i < lanes.size; i++) {
+            if (getRuaDaFaixa(i) != getRuaDaFaixa(i - 1)) continue;
+
+            float y = lanes.get(i);
+
+            if (lanesSentido.get(i) != lanesSentido.get(i - 1)) {
                 shapeRender.setColor(0.95f, 0.78f, 0.15f, 1f);
+                shapeRender.rect(0, y - 3f, largura, 2f);
+                shapeRender.rect(0, y + 1f, largura, 2f);
+            } else {
+                shapeRender.setColor(0.85f, 0.85f, 0.85f, 1f);
 
-                for (int p = 1; p < pistas; p++) {
-                    float y = base + p * GRID_SIZE;
-
-                    shapeRender.rect(0, y - 3f, largura, 2f);
-                    shapeRender.rect(0, y + 1f, largura, 2f);
+                for (float x = 0; x < largura; x += 60f) {
+                    shapeRender.rect(x, y - 1f, 30f, 2f);
                 }
             }
         }
@@ -476,6 +516,7 @@ public class Game extends ScreenAdapter {
     private void desenharPainelDoHud() {
         shapeRender.setColor(0.05f, 0.05f, 0.1f, 1f);
         shapeRender.rect(0, 0, 300f, 22f);
+        shapeRender.circle(300f, 11f, 11f);
 
         shapeRender.setColor(0.95f, 0.75f, 0.15f, 1f);
         shapeRender.rect(0, 22f, 300f, 2f);
@@ -484,6 +525,9 @@ public class Game extends ScreenAdapter {
     private void desenharMeta() {
         float quad = GRID_SIZE / 2f;
         int colunas = (int) (viewport.getWorldWidth() / quad) + 1;
+
+        shapeRender.setColor(0.20f, 0.50f, 0.22f, 1f);
+        shapeRender.rect(0, goalY - 4f, viewport.getWorldWidth(), 4f);
 
         for (int i = 0; i < colunas; i++) {
             for (int j = 0; j < 2; j++) {
@@ -494,19 +538,36 @@ public class Game extends ScreenAdapter {
             }
         }
 
+        desenharBandeirinhas();
         desenharBandeira(10f, goalY);
         desenharBandeira(viewport.getWorldWidth() - 20f, goalY);
     }
 
+    private void desenharBandeirinhas() {
+        float largura = viewport.getWorldWidth();
+        float yCorda = goalY + 58f;
+
+        shapeRender.setColor(0.35f, 0.25f, 0.15f, 1f);
+        shapeRender.rect(14f, yCorda, largura - 28f, 2f);
+
+        int cor = 0;
+
+        for (float x = 40f; x < largura - 60f; x += 40f) {
+            shapeRender.setColor(CORES_BANDEIRINHA[cor % CORES_BANDEIRINHA.length]);
+            shapeRender.triangle(x, yCorda, x + 18f, yCorda, x + 9f, yCorda - 12f);
+            cor++;
+        }
+    }
+
     private void desenharBandeira(float x, float y) {
         shapeRender.setColor(0.85f, 0.85f, 0.88f, 1f);
-        shapeRender.rect(x, y, 4f, 48f);
+        shapeRender.rect(x, y, 4f, 62f);
 
         shapeRender.setColor(0.90f, 0.15f, 0.15f, 1f);
-        shapeRender.triangle(x + 4f, y + 48f, x + 4f, y + 34f, x + 24f, y + 41f);
+        shapeRender.triangle(x + 4f, y + 62f, x + 4f, y + 48f, x + 24f, y + 55f);
 
         shapeRender.setColor(1f, 0.85f, 0.1f, 1f);
-        shapeRender.circle(x + 2f, y + 49f, 3f);
+        shapeRender.circle(x + 2f, y + 63f, 3f);
     }
 
     private void desenharEnfeites() {
@@ -514,63 +575,59 @@ public class Game extends ScreenAdapter {
             Enfeite e = enfeites.get(i);
 
             switch (e.tipo) {
-                case ARVORE -> desenharArvore(e.x, e.y);
-                case CASA -> desenharCasa(e.x, e.y, e.cor);
+                case ARVORE -> desenharArvore(e.x, e.y, e.cor);
                 case LAGO -> desenharLago(e.x, e.y);
                 case FLOR -> desenharFlores(e.x, e.y, e.cor);
-                case POSTE -> desenharPoste(e.x, e.y);
-                case BANCO -> desenharBanco(e.x, e.y);
                 case ARBUSTO -> desenharArbusto(e.x, e.y);
+                case TUFO -> desenharTufo(e.x, e.y);
+                case PEDRA -> desenharPedra(e.x, e.y);
+                case COGUMELO -> desenharCogumelo(e.x, e.y);
             }
         }
     }
 
-    private void desenharArvore(float x, float y) {
-        shapeRender.setColor(0.12f, 0.42f, 0.17f, 1f);
+    private void desenharArvore(float x, float y, int cor) {
+        if (cor == PINHEIRO) {
+            desenharPinheiro(x, y);
+            return;
+        }
+
+        shapeRender.setColor(0.20f, 0.50f, 0.22f, 1f);
         shapeRender.ellipse(x + 8f, y + 2f, 34f, 10f);
 
-        shapeRender.setColor(0.45f, 0.28f, 0.13f, 1f);
+        shapeRender.setColor(0.42f, 0.26f, 0.12f, 1f);
         shapeRender.rect(x + 21f, y + 5f, 8f, 18f);
 
-        shapeRender.setColor(0.10f, 0.40f, 0.15f, 1f);
+        shapeRender.setColor(0.52f, 0.34f, 0.17f, 1f);
+        shapeRender.rect(x + 21f, y + 5f, 3f, 18f);
+
+        shapeRender.setColor(COPA_ESCURA[cor]);
         shapeRender.circle(x + 25f, y + 32f, 15f);
         shapeRender.circle(x + 14f, y + 26f, 11f);
         shapeRender.circle(x + 36f, y + 26f, 11f);
 
-        shapeRender.setColor(0.25f, 0.62f, 0.25f, 1f);
-        shapeRender.circle(x + 21f, y + 36f, 7f);
+        shapeRender.setColor(COPA_CLARA[cor]);
+        shapeRender.circle(x + 21f, y + 36f, 8f);
+        shapeRender.circle(x + 32f, y + 31f, 5f);
+        shapeRender.circle(x + 12f, y + 28f, 4f);
     }
 
-    private void desenharCasa(float x, float y, int cor) {
-        float largura = GRID_SIZE * 2f - 8f;
+    private void desenharPinheiro(float x, float y) {
+        shapeRender.setColor(0.20f, 0.50f, 0.22f, 1f);
+        shapeRender.ellipse(x + 10f, y + 2f, 30f, 9f);
 
-        if (cor == 0) shapeRender.setColor(0.95f, 0.88f, 0.70f, 1f);
-        else if (cor == 1) shapeRender.setColor(0.95f, 0.75f, 0.75f, 1f);
-        else shapeRender.setColor(0.72f, 0.85f, 0.95f, 1f);
+        shapeRender.setColor(0.42f, 0.26f, 0.12f, 1f);
+        shapeRender.rect(x + 22f, y + 5f, 6f, 10f);
 
-        shapeRender.rect(x + 4f, y + 2f, largura, 28f);
+        shapeRender.setColor(0.07f, 0.34f, 0.20f, 1f);
+        shapeRender.triangle(x + 8f, y + 13f, x + 42f, y + 13f, x + 25f, y + 31f);
+        shapeRender.triangle(x + 12f, y + 24f, x + 38f, y + 24f, x + 25f, y + 40f);
+        shapeRender.triangle(x + 16f, y + 34f, x + 34f, y + 34f, x + 25f, y + 48f);
 
-        shapeRender.setColor(0.55f, 0.25f, 0.20f, 1f);
-        shapeRender.rect(x + GRID_SIZE * 2f - 30f, y + 32f, 8f, 14f);
-
-        shapeRender.setColor(0.65f, 0.20f, 0.15f, 1f);
-        shapeRender.triangle(x, y + 30f, x + GRID_SIZE * 2f, y + 30f, x + GRID_SIZE, y + 48f);
-
-        shapeRender.setColor(0.40f, 0.25f, 0.12f, 1f);
-        shapeRender.rect(x + GRID_SIZE - 6f, y + 2f, 12f, 18f);
-
-        shapeRender.setColor(1f, 0.85f, 0.1f, 1f);
-        shapeRender.circle(x + GRID_SIZE + 3f, y + 10f, 1.5f);
-
-        shapeRender.setColor(0.55f, 0.80f, 0.95f, 1f);
-        shapeRender.rect(x + 14f, y + 12f, 14f, 12f);
-        shapeRender.rect(x + GRID_SIZE * 2f - 28f, y + 12f, 14f, 12f);
-
-        shapeRender.setColor(1f, 1f, 1f, 1f);
-        shapeRender.rect(x + 20.5f, y + 12f, 1.5f, 12f);
-        shapeRender.rect(x + 14f, y + 17.5f, 14f, 1.5f);
-        shapeRender.rect(x + GRID_SIZE * 2f - 21.5f, y + 12f, 1.5f, 12f);
-        shapeRender.rect(x + GRID_SIZE * 2f - 28f, y + 17.5f, 14f, 1.5f);
+        shapeRender.setColor(0.15f, 0.50f, 0.28f, 1f);
+        shapeRender.triangle(x + 14f, y + 14f, x + 25f, y + 14f, x + 25f, y + 28f);
+        shapeRender.triangle(x + 17f, y + 25f, x + 25f, y + 25f, x + 25f, y + 37f);
+        shapeRender.triangle(x + 20f, y + 35f, x + 25f, y + 35f, x + 25f, y + 45f);
     }
 
     private void desenharLago(float x, float y) {
@@ -582,7 +639,10 @@ public class Game extends ScreenAdapter {
         shapeRender.setColor(0.20f, 0.55f, 0.85f, 1f);
         shapeRender.ellipse(x + 5f, y + 9f, largura - 2f, 32f);
 
-        shapeRender.setColor(0.55f, 0.80f, 0.95f, 1f);
+        shapeRender.setColor(0.32f, 0.68f, 0.92f, 1f);
+        shapeRender.ellipse(x + 10f, y + 15f, largura - 12f, 20f);
+
+        shapeRender.setColor(0.75f, 0.90f, 1f, 1f);
         shapeRender.ellipse(x + 22f, y + 26f, 28f, 8f);
 
         shapeRender.setColor(0.15f, 0.55f, 0.25f, 1f);
@@ -591,16 +651,16 @@ public class Game extends ScreenAdapter {
 
         shapeRender.setColor(1f, 0.6f, 0.75f, 1f);
         shapeRender.circle(x + 68f, y + 31f, 2f);
+        shapeRender.circle(x + 20f, y + 23f, 2f);
     }
 
     private void desenharFlores(float x, float y, int cor) {
-        desenharUmaFlor(x + 10f, y + 12f, CORES_FLOR[cor]);
-        desenharUmaFlor(x + 28f, y + 30f, CORES_FLOR[(cor + 1) % CORES_FLOR.length]);
-        desenharUmaFlor(x + 38f, y + 14f, CORES_FLOR[cor]);
+        desenharUmaFlor(x + 14f, y + 16f, CORES_FLOR[cor]);
+        desenharUmaFlor(x + 34f, y + 30f, CORES_FLOR[(cor + 1) % CORES_FLOR.length]);
     }
 
     private void desenharUmaFlor(float cx, float cy, Color corPetala) {
-        shapeRender.setColor(0.10f, 0.40f, 0.15f, 1f);
+        shapeRender.setColor(0.12f, 0.45f, 0.18f, 1f);
         shapeRender.rect(cx - 1f, cy - 8f, 2f, 8f);
 
         shapeRender.setColor(corPetala);
@@ -613,40 +673,16 @@ public class Game extends ScreenAdapter {
         shapeRender.circle(cx, cy, 2f);
     }
 
-    private void desenharPoste(float x, float y) {
-        shapeRender.setColor(0.25f, 0.25f, 0.28f, 1f);
-        shapeRender.rect(x + 23f, y + 4f, 4f, 34f);
-        shapeRender.rect(x + 18f, y + 4f, 14f, 4f);
-
-        shapeRender.setColor(1f, 0.92f, 0.45f, 1f);
-        shapeRender.circle(x + 25f, y + 41f, 6f);
-    }
-
-    private void desenharBanco(float x, float y) {
-        shapeRender.setColor(0.12f, 0.42f, 0.17f, 1f);
-        shapeRender.ellipse(x + 6f, y + 6f, 38f, 8f);
-
-        shapeRender.setColor(0.25f, 0.25f, 0.28f, 1f);
-        shapeRender.rect(x + 10f, y + 8f, 3f, 8f);
-        shapeRender.rect(x + 37f, y + 8f, 3f, 8f);
-        shapeRender.rect(x + 10f, y + 22f, 3f, 8f);
-        shapeRender.rect(x + 37f, y + 22f, 3f, 8f);
-
-        shapeRender.setColor(0.55f, 0.35f, 0.16f, 1f);
-        shapeRender.rect(x + 7f, y + 16f, 36f, 6f);
-        shapeRender.rect(x + 7f, y + 26f, 36f, 5f);
-    }
-
     private void desenharArbusto(float x, float y) {
-        shapeRender.setColor(0.12f, 0.42f, 0.17f, 1f);
+        shapeRender.setColor(0.20f, 0.50f, 0.22f, 1f);
         shapeRender.ellipse(x + 6f, y + 4f, 38f, 9f);
 
-        shapeRender.setColor(0.10f, 0.38f, 0.14f, 1f);
+        shapeRender.setColor(0.12f, 0.45f, 0.18f, 1f);
         shapeRender.circle(x + 16f, y + 18f, 11f);
         shapeRender.circle(x + 34f, y + 18f, 11f);
         shapeRender.circle(x + 25f, y + 24f, 13f);
 
-        shapeRender.setColor(0.22f, 0.58f, 0.24f, 1f);
+        shapeRender.setColor(0.28f, 0.65f, 0.28f, 1f);
         shapeRender.circle(x + 21f, y + 27f, 5f);
         shapeRender.circle(x + 35f, y + 21f, 4f);
 
@@ -654,6 +690,39 @@ public class Game extends ScreenAdapter {
         shapeRender.circle(x + 14f, y + 16f, 2f);
         shapeRender.circle(x + 30f, y + 14f, 2f);
         shapeRender.circle(x + 38f, y + 22f, 2f);
+    }
+
+    private void desenharTufo(float x, float y) {
+        shapeRender.setColor(0.18f, 0.50f, 0.22f, 1f);
+        shapeRender.triangle(x + 20f, y + 15f, x + 24f, y + 15f, x + 21f, y + 24f);
+        shapeRender.triangle(x + 24f, y + 15f, x + 28f, y + 15f, x + 26f, y + 26f);
+        shapeRender.triangle(x + 28f, y + 15f, x + 32f, y + 15f, x + 32f, y + 23f);
+    }
+
+    private void desenharPedra(float x, float y) {
+        shapeRender.setColor(0.20f, 0.48f, 0.22f, 1f);
+        shapeRender.ellipse(x + 14f, y + 12f, 26f, 6f);
+
+        shapeRender.setColor(0.52f, 0.54f, 0.56f, 1f);
+        shapeRender.ellipse(x + 15f, y + 15f, 24f, 14f);
+
+        shapeRender.setColor(0.68f, 0.70f, 0.72f, 1f);
+        shapeRender.ellipse(x + 20f, y + 21f, 10f, 5f);
+    }
+
+    private void desenharCogumelo(float x, float y) {
+        shapeRender.setColor(0.20f, 0.48f, 0.22f, 1f);
+        shapeRender.ellipse(x + 17f, y + 12f, 18f, 5f);
+
+        shapeRender.setColor(0.96f, 0.93f, 0.85f, 1f);
+        shapeRender.rect(x + 23f, y + 14f, 5f, 8f);
+
+        shapeRender.setColor(0.88f, 0.18f, 0.18f, 1f);
+        shapeRender.ellipse(x + 17f, y + 20f, 18f, 12f);
+
+        shapeRender.setColor(1f, 1f, 1f, 1f);
+        shapeRender.circle(x + 22f, y + 26f, 2f);
+        shapeRender.circle(x + 29f, y + 25f, 1.5f);
     }
 
     private float getMultiplicadorDeVelocidade() {
@@ -680,6 +749,12 @@ public class Game extends ScreenAdapter {
 
         if (faixaTimerMax > 0f) return "Carros azuis parados: " + (int) Math.ceil(faixaTimerMax) + "s";
         if (mensagemTimer > 0f) return mensagem;
+
+        if (sinalVermelho && getTotalRuas() > 1) {
+            int restante = (int) Math.ceil(Math.max(0f, TEMPO_SINAL_VERMELHO - sinalTimer));
+            return "Sinal vermelho: carros parados " + restante + "s";
+        }
+
         return null;
     }
 
@@ -717,18 +792,20 @@ public class Game extends ScreenAdapter {
         return topo;
     }
 
-    private boolean temFaixa(int rua) {
-        return rua % 2 == 0;
-    }
-
     private boolean temSinal(int rua) {
         return rua % 2 == 1;
+    }
+
+    private float getFaixaX(int rua) {
+        if (temSinal(rua)) return FAIXA_X_DO_SEMAFORO;
+
+        return viewport.getWorldWidth() / 2f - FAIXA_LARGURA / 2f;
     }
 
     private void atualizarSinal(float delta) {
         sinalTimer += delta;
 
-        float tempoDoSinal = sinalVermelho ? 3f : 5f;
+        float tempoDoSinal = sinalVermelho ? TEMPO_SINAL_VERMELHO : 5f;
 
         if (sinalTimer >= tempoDoSinal) {
             sinalTimer = 0f;
@@ -738,12 +815,13 @@ public class Game extends ScreenAdapter {
 
     private void atualizarFaixas(float delta) {
         for (int rua = 0; rua < getTotalRuas(); rua++) {
-            if (!temFaixa(rua)) continue;
+            if (jogadorAtravessandoNaFaixa(rua)) usouFaixa = true;
+
+            if (temSinal(rua)) continue;
 
             boolean naFaixa = jogadorNaFaixa(rua);
 
             if (naFaixa && !jogadorNaFaixaAntes[rua]) faixaTimers[rua] = TEMPO_FAIXA;
-            if (jogadorAtravessandoNaFaixa(rua)) usouFaixa = true;
 
             jogadorNaFaixaAntes[rua] = naFaixa;
 
@@ -762,28 +840,46 @@ public class Game extends ScreenAdapter {
             float velocidadeNormal = laneSpeeds[faixa];
             boolean deveParar = false;
 
-            if (temFaixa(rua) && carrosAzuis.contains(car, true) && faixaTimers[rua] > 0f) {
-                deveParar = estaChegandoNaFaixa(car, velocidadeNormal);
+            if (temSinal(rua)) {
+                if (sinalVermelho) deveParar = estaChegandoNaFaixa(car, velocidadeNormal, getFaixaX(rua));
+            } else if (carrosAzuis.contains(car, true) && faixaTimers[rua] > 0f) {
+                deveParar = estaChegandoNaFaixa(car, velocidadeNormal, getFaixaX(rua));
             }
 
-            if (temSinal(rua) && sinalVermelho) {
-                deveParar = true;
-            }
+            if (!deveParar) deveParar = temCarroParadoNaFrente(car, faixa, velocidadeNormal);
 
             car.velocidade.x = deveParar ? 0f : velocidadeNormal;
         }
+    }
+
+    private boolean temCarroParadoNaFrente(Car car, int faixa, float velocidadeNormal) {
+        for (int i = 0; i < entidades.size; i++) {
+            if (!(entidades.get(i) instanceof Car outro)) continue;
+            if (outro == car || outro.velocidade.x != 0f) continue;
+            if (getFaixaDoCarro(outro) != faixa) continue;
+
+            float distancia;
+
+            if (velocidadeNormal > 0) distancia = outro.getX() - (car.getX() + car.bounds.width);
+            else distancia = car.getX() - (outro.getX() + outro.bounds.width);
+
+            if (distancia >= 0f && distancia < DISTANCIA_FILA) return true;
+        }
+
+        return false;
     }
 
     private int getFaixaDoCarro(Car car) {
         for (int i = 0; i < lanes.size; i++) {
             if (Math.abs(car.getY() - (lanes.get(i) + 5f)) < 1f) return i;
         }
+
         return -1;
     }
 
-    private boolean jogadorNaColunaDaFaixa() {
+    private boolean jogadorNaColunaDaFaixa(int rua) {
         float centroDoJogador = player.getX() + GRID_SIZE / 2f;
-        float faixaX = getFaixaX();
+        float faixaX = getFaixaX(rua);
 
         return centroDoJogador >= faixaX && centroDoJogador <= faixaX + FAIXA_LARGURA;
     }
@@ -794,7 +890,7 @@ public class Game extends ScreenAdapter {
 
         boolean pertoDaRuaNoY = player.getY() >= base - GRID_SIZE - 1f && player.getY() <= topo - GRID_SIZE + 1f;
 
-        return jogadorNaColunaDaFaixa() && pertoDaRuaNoY;
+        return jogadorNaColunaDaFaixa(rua) && pertoDaRuaNoY;
     }
 
     private boolean jogadorAtravessandoNaFaixa(int rua) {
@@ -803,24 +899,23 @@ public class Game extends ScreenAdapter {
 
         boolean naRuaNoY = player.getY() >= base - 1f && player.getY() <= topo - GRID_SIZE + 1f;
 
-        return jogadorNaColunaDaFaixa() && naRuaNoY;
+        return jogadorNaColunaDaFaixa(rua) && naRuaNoY;
     }
 
-    private boolean estaChegandoNaFaixa(Car car, float velocidadeNormal) {
-        float faixaX = getFaixaX();
+    private boolean estaChegandoNaFaixa(Car car, float velocidadeNormal, float faixaX) {
+        float janela = Math.max(10f, Math.abs(velocidadeNormal) * 0.05f);
 
         if (velocidadeNormal > 0) {
             float frente = car.getX() + car.bounds.width;
-            return frente >= faixaX - 30f && frente <= faixaX;
+            float linhaDeParada = faixaX - MARGEM_FAIXA;
+
+            return frente >= linhaDeParada - janela && frente <= linhaDeParada;
         } else {
             float frente = car.getX();
-            float fimDaFaixa = faixaX + FAIXA_LARGURA;
-            return frente <= fimDaFaixa + 30f && frente >= fimDaFaixa;
-        }
-    }
+            float linhaDeParada = faixaX + FAIXA_LARGURA + MARGEM_FAIXA;
 
-    private float getFaixaX() {
-        return viewport.getWorldWidth() / 2f - FAIXA_LARGURA / 2f;
+            return frente <= linhaDeParada + janela && frente >= linhaDeParada;
+        }
     }
 
     private void desenharCalcadas() {
@@ -830,7 +925,11 @@ public class Game extends ScreenAdapter {
             float base = getRuaBaseY(rua);
             float topo = getRuaTopoY(rua);
 
-            shapeRender.setColor(0.78f, 0.78f, 0.75f, 1f);
+            shapeRender.setColor(0.12f, 0.12f, 0.15f, 1f);
+            shapeRender.rect(0, base, largura, 4f);
+            shapeRender.rect(0, topo - 4f, largura, 4f);
+
+            shapeRender.setColor(0.80f, 0.80f, 0.77f, 1f);
             shapeRender.rect(0, base - CALCADA_ALTURA, largura, CALCADA_ALTURA);
             shapeRender.rect(0, topo, largura, CALCADA_ALTURA);
 
@@ -841,6 +940,10 @@ public class Game extends ScreenAdapter {
                 shapeRender.rect(x, topo + 2f, 1f, CALCADA_ALTURA - 2f);
             }
 
+            shapeRender.setColor(0.90f, 0.90f, 0.87f, 1f);
+            shapeRender.rect(0, base - CALCADA_ALTURA, largura, 2f);
+            shapeRender.rect(0, topo + CALCADA_ALTURA - 2f, largura, 2f);
+
             shapeRender.setColor(0.55f, 0.55f, 0.55f, 1f);
             shapeRender.rect(0, base - 2f, largura, 2f);
             shapeRender.rect(0, topo, largura, 2f);
@@ -848,13 +951,10 @@ public class Game extends ScreenAdapter {
     }
 
     private void desenharFaixasDePedestre() {
-        float x = getFaixaX();
-
-        shapeRender.setColor(0.93f, 0.93f, 0.93f, 1f);
+        shapeRender.setColor(0.95f, 0.95f, 0.95f, 1f);
 
         for (int rua = 0; rua < getTotalRuas(); rua++) {
-            if (!temFaixa(rua)) continue;
-
+            float x = getFaixaX(rua);
             float base = getRuaBaseY(rua);
             float topo = getRuaTopoY(rua);
             int listras = (int) ((topo - base) / 10f);
@@ -869,38 +969,44 @@ public class Game extends ScreenAdapter {
         for (int rua = 0; rua < getTotalRuas(); rua++) {
             if (!temSinal(rua)) continue;
 
-            float x = 14f;
-            float y = getRuaTopoY(rua) + 4f;
-            float cx = x + 11f;
+            float faixaX = getFaixaX(rua);
+            float y = getRuaTopoY(rua) + CALCADA_ALTURA - 8f;
 
-            shapeRender.setColor(0.35f, 0.35f, 0.38f, 1f);
-            shapeRender.rect(x + 9f, y - 4f, 4f, 6f);
-            shapeRender.rect(x - 2f, y - 2f, 26f, 42f);
-
-            shapeRender.setColor(0.08f, 0.08f, 0.08f, 1f);
-            shapeRender.rect(x, y, 22f, 38f);
-
-            if (sinalVermelho) {
-                shapeRender.setColor(1f, 0.55f, 0.55f, 1f);
-                shapeRender.circle(cx, y + 30f, 7f);
-                shapeRender.setColor(1f, 0.15f, 0.15f, 1f);
-            } else {
-                shapeRender.setColor(0.3f, 0.05f, 0.05f, 1f);
-            }
-            shapeRender.circle(cx, y + 30f, 5f);
-
-            shapeRender.setColor(0.3f, 0.25f, 0.05f, 1f);
-            shapeRender.circle(cx, y + 19f, 5f);
-
-            if (!sinalVermelho) {
-                shapeRender.setColor(0.6f, 1f, 0.65f, 1f);
-                shapeRender.circle(cx, y + 8f, 7f);
-                shapeRender.setColor(0.2f, 1f, 0.3f, 1f);
-            } else {
-                shapeRender.setColor(0.05f, 0.3f, 0.08f, 1f);
-            }
-            shapeRender.circle(cx, y + 8f, 5f);
+            desenharSemaforo(faixaX - 34f, y);
+            desenharSemaforo(faixaX + FAIXA_LARGURA + 12f, y);
         }
+    }
+
+    private void desenharSemaforo(float x, float y) {
+        float cx = x + 11f;
+
+        shapeRender.setColor(0.35f, 0.35f, 0.38f, 1f);
+        shapeRender.rect(x + 9f, y - 4f, 4f, 6f);
+        shapeRender.rect(x - 2f, y - 2f, 26f, 42f);
+
+        shapeRender.setColor(0.08f, 0.08f, 0.08f, 1f);
+        shapeRender.rect(x, y, 22f, 38f);
+
+        if (sinalVermelho) {
+            shapeRender.setColor(1f, 0.55f, 0.55f, 1f);
+            shapeRender.circle(cx, y + 30f, 7f);
+            shapeRender.setColor(1f, 0.15f, 0.15f, 1f);
+        } else {
+            shapeRender.setColor(0.3f, 0.05f, 0.05f, 1f);
+        }
+        shapeRender.circle(cx, y + 30f, 5f);
+
+        shapeRender.setColor(0.3f, 0.25f, 0.05f, 1f);
+        shapeRender.circle(cx, y + 19f, 5f);
+
+        if (!sinalVermelho) {
+            shapeRender.setColor(0.6f, 1f, 0.65f, 1f);
+            shapeRender.circle(cx, y + 8f, 7f);
+            shapeRender.setColor(0.2f, 1f, 0.3f, 1f);
+        } else {
+            shapeRender.setColor(0.05f, 0.3f, 0.08f, 1f);
+        }
+        shapeRender.circle(cx, y + 8f, 5f);
     }
 
     private void desenharBarraDeAviso() {
@@ -916,6 +1022,9 @@ public class Game extends ScreenAdapter {
         float largura = Math.min(viewport.getWorldWidth() - 40f, 520f);
         float cx = viewport.getWorldWidth() / 2f;
         float cy = viewport.getWorldHeight() / 2f;
+
+        shapeRender.setColor(0.95f, 0.75f, 0.15f, 1f);
+        shapeRender.rect(cx - largura / 2f - 3f, cy - 93f, largura + 6f, 196f);
 
         shapeRender.setColor(0.05f, 0.05f, 0.1f, 1f);
         shapeRender.rect(cx - largura / 2f, cy - 90f, largura, 190f);
